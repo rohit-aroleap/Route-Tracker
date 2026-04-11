@@ -1,0 +1,1877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Installation Tracker — Bangalore</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #F5F2EB;
+  --surface: #FEFCF7;
+  --surface2: #EDE9DF;
+  --ink: #1A1714;
+  --ink2: #6B6560;
+  --ink3: #A09A94;
+  --accent: #C84B2F;
+  --accent2: #2F6EC8;
+  --accent3: #2E8B57;
+  --border: rgba(26,23,20,0.12);
+  --border2: rgba(26,23,20,0.07);
+  --mono: 'DM Mono', monospace;
+  --sans: 'DM Sans', sans-serif;
+  --serif: 'Fraunces', serif;
+  --r: 6px;
+  --r2: 10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;min-height:100vh}
+input,select,textarea,button{font-family:var(--sans);font-size:14px}
+
+/* ── Layout ── */
+.shell{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
+.sidebar{background:var(--ink);padding:28px 20px;display:flex;flex-direction:column;gap:20px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.main{padding:28px 32px;overflow-y:auto}
+
+/* ── Sidebar ── */
+.logo{font-family:var(--serif);font-size:20px;color:#fff;font-weight:300;line-height:1.2;letter-spacing:-0.01em}
+.logo span{color:var(--accent);font-style:italic}
+.nav-label{font-size:10px;font-family:var(--mono);color:rgba(255,255,255,0.3);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;margin-top:8px}
+.nav-btn{display:block;width:100%;text-align:left;background:none;border:none;color:rgba(255,255,255,0.65);font-family:var(--sans);font-size:13px;padding:8px 10px;border-radius:var(--r);cursor:pointer;transition:all 0.15s}
+.nav-btn:hover{background:rgba(255,255,255,0.07);color:#fff}
+.nav-btn.active{background:rgba(200,75,47,0.2);color:#fff;border-left:2px solid var(--accent)}
+.stat-box{background:rgba(255,255,255,0.05);border-radius:var(--r2);padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat-item .val{font-family:var(--serif);font-size:22px;color:#fff;font-weight:600}
+.stat-item .lbl{font-size:10px;color:rgba(255,255,255,0.4);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.06em;margin-top:1px}
+
+/* ── Day pills in sidebar ── */
+.day-pills{display:flex;flex-direction:column;gap:4px}
+.day-pill{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:var(--r);cursor:pointer;transition:all 0.15s}
+.day-pill:hover{background:rgba(255,255,255,0.07)}
+.day-pill .dp-label{font-size:12px;color:rgba(255,255,255,0.7)}
+.day-pill .dp-count{font-family:var(--mono);font-size:11px;padding:1px 6px;border-radius:10px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.5)}
+.day-pill .dp-bar{height:3px;border-radius:2px;margin-top:5px;transition:width 0.3s}
+
+/* ── Pages ── */
+.page{display:none}
+.page.active{display:block}
+.page-title{font-family:var(--serif);font-size:28px;font-weight:300;letter-spacing:-0.02em;margin-bottom:4px}
+.page-sub{font-size:13px;color:var(--ink2);margin-bottom:24px}
+
+/* ── Cards ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:20px 22px;margin-bottom:16px}
+.card-title{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--ink2);margin-bottom:14px}
+
+/* ── Form elements ── */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid.cols3{grid-template-columns:1fr 1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group label{font-size:11px;font-family:var(--mono);color:var(--ink2);text-transform:uppercase;letter-spacing:0.06em}
+.form-group input,.form-group select,.form-group textarea{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
+  padding:8px 11px;color:var(--ink);outline:none;transition:border-color 0.15s;
+  font-family:var(--sans);font-size:13px;
+}
+.form-group input:focus,.form-group select:focus{border-color:var(--accent)}
+.form-group.full{grid-column:1/-1}
+.btn{padding:9px 18px;border-radius:var(--r);border:none;font-family:var(--sans);font-size:13px;font-weight:500;cursor:pointer;transition:all 0.15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#b03d22}
+.btn-secondary{background:var(--surface2);color:var(--ink);border:1px solid var(--border)}
+.btn-secondary:hover{background:#ddd9cf}
+.btn-blue{background:var(--accent2);color:#fff}
+.btn-blue:hover{background:#2460b0}
+.btn-row{display:flex;gap:8px;margin-top:16px;align-items:center}
+
+/* ── Table ── */
+.tbl-wrap{overflow-x:auto;border-radius:var(--r2);border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;background:var(--surface)}
+thead{background:var(--surface2)}
+th{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:var(--ink2);padding:10px 14px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--border)}
+td{padding:10px 14px;border-bottom:1px solid var(--border2);font-size:13px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(0,0,0,0.015)}
+.pin-chip{font-family:var(--mono);font-size:12px;background:var(--surface2);padding:2px 8px;border-radius:12px;display:inline-block}
+.day-chip{font-size:11px;font-weight:500;padding:2px 8px;border-radius:12px;display:inline-block;white-space:nowrap}
+.status-chip{font-size:11px;padding:2px 9px;border-radius:12px;font-weight:500;display:inline-block}
+.sc-paid{background:#FFF8E1;color:#B45309}
+.sc-scheduled{background:#E3F2FD;color:#1565C0}
+.sc-done{background:#E8F5E9;color:#2E7D32}
+.sc-cancelled{background:#FCE4EC;color:#B71C1C}
+.sc-rescheduled{background:#EDE7F6;color:#6A1B9A}
+/* legacy */
+.sc-confirmed{background:#E3F2FD;color:#1565C0}
+.sc-pending{background:#FFF8E1;color:#B45309}
+.sc-future{background:#F3F4F6;color:#374151}
+.delete-btn{background:none;border:none;color:var(--ink3);cursor:pointer;font-size:16px;line-height:1;padding:2px 6px;border-radius:4px;transition:all 0.15s}
+.delete-btn:hover{background:#fee;color:var(--accent)}
+
+/* ── Day suggestion result ── */
+.sug-result{display:none;margin-top:16px}
+.sug-card{border-radius:var(--r2);padding:18px 20px;border:1.5px solid var(--border)}
+.sug-card.best{border-color:var(--accent);background:rgba(200,75,47,0.04)}
+.sug-rank{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:var(--ink2);margin-bottom:4px}
+.sug-day{font-family:var(--serif);font-size:22px;font-weight:600;color:var(--accent);margin-bottom:2px}
+.sug-meta{font-size:12px;color:var(--ink2);margin-bottom:8px}
+.sug-reason{font-size:12px;color:var(--ink2);line-height:1.6;border-top:1px solid var(--border2);padding-top:8px;margin-top:8px}
+.sug-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:0}
+.dist-bar-bg{height:4px;background:var(--surface2);border-radius:2px;margin-top:6px}
+.dist-bar{height:4px;border-radius:2px;background:var(--accent);transition:width 0.4s}
+
+/* ── Day schedule view ── */
+.schedule-grid{display:none}
+.sched-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:16px;transition:box-shadow 0.15s}
+.sched-card:hover{box-shadow:0 2px 12px rgba(0,0,0,0.08)}
+.sched-day-num{font-family:var(--serif);font-size:24px;font-weight:600;line-height:1}
+.sched-day-label{font-size:11px;font-family:var(--mono);color:var(--ink2);text-transform:uppercase;letter-spacing:0.05em;margin-top:2px;margin-bottom:12px}
+.sched-pin{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border2);font-size:12px}
+.sched-pin:last-child{border-bottom:none}
+.sched-pin-code{font-family:var(--mono);color:var(--ink2)}
+.sched-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+/* ── Search ── */
+.search-bar{display:flex;gap:8px;margin-bottom:16px}
+.search-bar input{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:8px 12px;color:var(--ink);outline:none}
+.search-bar input:focus{border-color:var(--accent)}
+
+/* ── Toast ── */
+#toast{position:fixed;bottom:24px;right:24px;background:var(--ink);color:#fff;font-size:13px;padding:10px 18px;border-radius:var(--r2);opacity:0;transform:translateY(6px);transition:all 0.25s;pointer-events:none;z-index:999;font-family:var(--mono)}
+#toast.show{opacity:1;transform:translateY(0)}
+
+/* ── Zone badge ── */
+.zone-badge{font-size:10px;font-family:var(--mono);padding:1px 7px;border-radius:10px;display:inline-block;text-transform:uppercase;letter-spacing:0.05em}
+.zb-north{background:#DBEAFE;color:#1e40af}
+.zb-northwest{background:#EDE9FE;color:#5b21b6}
+.zb-east{background:#D1FAE5;color:#065f46}
+.zb-central{background:#FEF3C7;color:#92400e}
+.zb-south{background:#FFE4E6;color:#9f1239}
+.zb-outer{background:#F3F4F6;color:#374151}
+
+/* ── Responsive ── */
+@media(max-width:700px){
+  .shell{grid-template-columns:1fr}
+  .sidebar{height:auto;position:relative;flex-direction:row;flex-wrap:wrap;padding:16px}
+  .main{padding:16px}
+  .form-grid{grid-template-columns:1fr}
+  .sug-grid{grid-template-columns:1fr}
+  .schedule-grid{grid-template-columns:1fr 1fr}
+}
+
+/* ── Animations ── */
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{animation:fadeIn 0.25s ease both}
+
+.empty-state{text-align:center;padding:48px 20px;color:var(--ink3);font-style:italic;font-family:var(--serif)}
+.tag-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+
+</style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<div class="shell">
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <div>
+      <div class="logo">Blr<span>Install</span><br>Tracker</div>
+    </div>
+
+    <div class="stat-box">
+      <div class="stat-item"><div class="val" id="s-total">0</div><div class="lbl">Total</div></div>
+      <div class="stat-item"><div class="val" id="s-done">0</div><div class="lbl">Done</div></div>
+      <div class="stat-item"><div class="val" id="s-pending">0</div><div class="lbl">Scheduled</div></div>
+      <div class="stat-item"><div class="val" style="font-size:14px;padding-top:4px">11–17</div><div class="lbl">April</div></div>
+    </div>
+
+    <div>
+      <div class="nav-label">Menu</div>
+      <button class="nav-btn active" onclick="showPage('schedule')">Schedule Overview</button>
+      <button class="nav-btn" onclick="showPage('suggest')">Pincode Suggester</button>
+      <button class="nav-btn" onclick="showPage('route')">Route Planner</button>
+      <button class="nav-btn" onclick="showPage('editdata')">Edit Data</button>
+    </div>
+
+    <div>
+      <div class="nav-label">Day Progress</div>
+      <div class="day-pills" id="day-pills"></div>
+    </div>
+
+    <div style="margin-top:auto;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08)">
+      <div id="save-indicator" style="font-size:10px;font-family:var(--mono);color:rgba(255,255,255,0.4);margin-bottom:2px;transition:opacity 0.5s;opacity:0.4">Auto-save on</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button onclick="exportJSON()" style="flex:1;font-size:11px;padding:6px 8px;border-radius:var(--r);border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.7);cursor:pointer;font-family:var(--sans)">Export JSON</button>
+        <label style="flex:1;font-size:11px;padding:6px 8px;border-radius:var(--r);border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.7);cursor:pointer;font-family:var(--sans);text-align:center">
+          Import
+          <input type="file" accept=".json" style="display:none" onchange="importJSON(this.files[0]);this.value=''"/>
+        </label>
+      </div>
+      <button onclick="resetToSeed()" style="width:100%;margin-top:6px;font-size:10px;padding:5px;border-radius:var(--r);border:1px solid rgba(200,75,47,0.3);background:transparent;color:rgba(200,75,47,0.6);cursor:pointer;font-family:var(--mono)">Reset to seed data</button>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="main">
+
+    <!-- Schedule Page -->
+    <div class="page active" id="page-schedule">
+      <div class="page-title">Schedule Overview</div>
+      <div class="page-sub">April 2025 — installation days highlighted</div>
+      <div id="cal-wrap"></div>
+      <div id="cal-detail" style="margin-top:20px"></div>
+    </div>
+
+    <!-- Log Page -->
+    <div class="page" id="page-log">
+      <div class="page-title">Installation Log</div>
+      <div class="page-sub">All confirmed and planned installations</div>
+      <div class="search-bar">
+        <input type="text" id="search-input" placeholder="Search by name, pincode, area..." oninput="renderLog()"/>
+        <select id="filter-day" onchange="renderLog()" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;color:var(--ink);outline:none">
+          <option value="">All days</option>
+          <option value="1">11 Apr</option><option value="2">12 Apr</option>
+          <option value="3">13 Apr</option><option value="4">14 Apr</option>
+          <option value="5">15 Apr</option><option value="6">16 Apr</option>
+          <option value="7">17 Apr</option><option value="new">Other</option>
+        </select>
+        <select id="filter-status" onchange="renderLog()" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;color:var(--ink);outline:none">
+          <option value="">All status</option>
+          <option value="paid">₹1 Paid</option>
+          <option value="scheduled">Scheduled</option>
+          <option value="done">Installation Done</option>
+          <option value="cancelled">Cancelled</option>
+          <option value="rescheduled">Rescheduled</option>
+        </select>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th><th>Name</th><th>Phone</th><th>Area</th>
+              <th>Pincode</th><th>Zone</th><th>Day</th><th>Date</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="log-tbody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="log-empty" style="display:none">No installations found</div>
+    </div>
+
+    <!-- Add Installation Page -->
+    <div class="page" id="page-add">
+      <div class="page-title">Add Installation</div>
+      <div class="page-sub">Log a confirmed installation or schedule a future one</div>
+
+      <div class="card">
+        <div class="card-title">Installation Details</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Customer name</label>
+            <input type="text" id="f-name" placeholder="e.g. Rahul"/>
+          </div>
+          <div class="form-group">
+            <label>Phone number</label>
+            <input type="text" id="f-phone" placeholder="e.g. 9848472106"/>
+          </div>
+          <div class="form-group">
+            <label>Area / locality</label>
+            <input type="text" id="f-area" placeholder="e.g. Yelahanka"/>
+          </div>
+          <div class="form-group">
+            <label>Pincode</label>
+            <input type="text" id="f-pin" maxlength="6" placeholder="e.g. 560064" oninput="autoDayFromPin()"/>
+          </div>
+          <div class="form-group">
+            <label>Installation date</label>
+            <input type="date" id="f-date" onchange="autoDayFromDate()"/>
+          </div>
+          <div class="form-group">
+            <label>Assigned day</label>
+            <select id="f-day">
+              <option value="">Auto / unassigned</option>
+              <option value="1">11 Apr — North (Hebbal)</option>
+              <option value="2">12 Apr — North-West (Rajajinagar, Sadashivanagar)</option>
+              <option value="3">13 Apr — East (Whitefield corridor)</option>
+              <option value="4">14 Apr — Central (Indiranagar, Bellandur)</option>
+              <option value="5">15 Apr — South (HSR, Sarjapur)</option>
+              <option value="6">16 Apr — South (Banashankari)</option>
+              <option value="7">17 Apr — Outer (Attibele, Nelamangala)</option>
+              <option value="new">Other date</option>
+            </select>
+          </div>
+          <div class="form-group full">
+            <label>Status</label>
+            <select id="f-status">
+              <option value="paid">₹1 Paid</option>
+              <option value="scheduled">Installation Scheduled</option>
+              <option value="done">Installation Done</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="rescheduled">Rescheduled</option>
+            </select>
+          </div>
+          <div class="form-group full">
+            <label>Notes (optional)</label>
+            <textarea id="f-notes" rows="2" style="resize:vertical;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:8px 11px;color:var(--ink);outline:none;font-size:13px" placeholder="Any remarks..."></textarea>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="addInstallation()">Add Installation</button>
+          <button class="btn btn-secondary" onclick="clearForm()">Clear</button>
+          <span id="f-hint" style="font-size:12px;color:var(--accent);font-family:var(--mono)"></span>
+        </div>
+      </div>
+
+      <!-- Bulk paste -->
+      <div class="card">
+        <div class="card-title">Bulk import (paste from spreadsheet)</div>
+        <div class="form-group" style="margin-bottom:10px">
+          <label>Paste rows — one per line: Name, Phone, Area, Pincode, Date, Status</label>
+          <textarea id="bulk-input" rows="5" style="resize:vertical;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:8px 11px;color:var(--ink);outline:none;font-size:12px;font-family:var(--mono)" placeholder="Rahul&#9;8848472106&#9;Yelahanka&#9;560064&#9;11th April&#9;confirmed&#10;Deepa&#9;9739098854&#9;Kempapura Bellary Rd&#9;560024&#9;11th April&#9;confirmed"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-blue" onclick="bulkImport()">Import rows</button>
+          <span id="bulk-hint" style="font-size:12px;color:var(--accent2);font-family:var(--mono)"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Suggest Page -->
+    <div class="page" id="page-suggest">
+      <div class="page-title">Pincode Day Suggester</div>
+      <div class="page-sub">Enter any Bangalore pincode — get the top 3 best installation days based on proximity</div>
+
+      <div class="card">
+        <div class="card-title">Enter pincode</div>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+          <div class="form-group" style="flex:0 0 200px">
+            <label>Pincode</label>
+            <input type="text" id="sug-pin" maxlength="6" placeholder="e.g. 560034" style="font-family:var(--mono);font-size:16px;letter-spacing:0.08em"/>
+          </div>
+          <div class="form-group" style="flex:0 0 180px">
+            <label>Area name (optional)</label>
+            <input type="text" id="sug-area" placeholder="e.g. Koramangala"/>
+          </div>
+          <button class="btn btn-primary" onclick="runSuggest()" style="margin-bottom:1px">Get suggestions</button>
+        </div>
+        <div id="sug-existing" style="margin-top:10px;font-size:12px;font-family:var(--mono);color:var(--accent)"></div>
+      </div>
+
+      <div class="sug-result" id="sug-result">
+        <div class="card-title" style="margin-bottom:10px">Top 3 Suggested Days</div>
+        <div class="sug-grid" id="sug-grid"></div>
+        <div class="btn-row" style="margin-top:14px">
+          <button class="btn btn-primary" id="sug-add-btn" onclick="addFromSuggest()" style="display:none">Add to Day 1 →</button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Route Planner Page -->
+    <div class="page" id="page-route">
+      <div class="page-title">Route Planner</div>
+      <div class="page-sub">Select a day, reorder stops, visualise the path</div>
+
+      <!-- Day selector -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px" id="route-day-tabs"></div>
+
+      <div style="display:grid;grid-template-columns:320px 1fr;gap:16px;min-height:520px" id="route-body">
+
+        <!-- Left: ordered stop list -->
+        <div style="display:flex;flex-direction:column;gap:10px;height:520px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;display:flex;flex-direction:column;flex:1;min-height:0">
+            <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+              <span style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:var(--ink2)">Installation order</span>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px" onclick="optimiseRoute()">Auto-sort by proximity</button>
+                <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px" onclick="copyRouteText()">Copy list</button>
+              </div>
+            </div>
+            <div id="route-stops" style="overflow-y:auto;flex:1;min-height:0"></div>
+            <div style="padding:8px 14px;border-top:1px solid var(--border2);font-size:11px;color:var(--ink3);font-family:var(--mono);flex-shrink:0">
+              Drag to reorder · auto-saves
+            </div>
+          </div>
+          <div id="route-summary" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:12px 14px;font-size:12px;color:var(--ink2);display:none;flex-shrink:0"></div>
+        </div>
+
+        <!-- Right: map -->
+        <div style="border-radius:var(--r2);overflow:hidden;border:1px solid var(--border);height:520px;position:relative">
+          <div id="route-map" style="width:100%;height:520px;display:block"></div>
+          <div id="route-map-placeholder" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--surface2);flex-direction:column;gap:8px">
+            <div style="font-size:13px;color:var(--ink2)">Select a day to load the map</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Edit Data Page -->
+    <div class="page" id="page-editdata">
+      <div class="page-title">Edit Data</div>
+      <div class="page-sub">Click any cell to edit — changes save automatically</div>
+      <div id="sheet-wrap"></div>
+    </div>
+
+
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+/* ─── FIREBASE (real-time sync) ───────────────────────────────────────────
+   SETUP (one-time, ~5 min):
+   1. Go to https://console.firebase.google.com → create a project
+   2. Add a Realtime Database (Start in test mode)
+   3. Project Settings → Your apps → Add web app → copy config below
+   4. In Realtime Database → Rules, set:
+        { "rules": { ".read": true, ".write": true } }
+   ─────────────────────────────────────────────────────────────────────── */
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyDMaVnRPjK55-T95m9AS49Ju_bgR_p42ic",
+  authDomain:        "mapping-ferra-installation.firebaseapp.com",
+  databaseURL:       "https://mapping-ferra-installation-default-rtdb.firebaseio.com",
+  projectId:         "mapping-ferra-installation",
+  storageBucket:     "mapping-ferra-installation.firebasestorage.app",
+  messagingSenderId: "1037635127527",
+  appId:             "1:1037635127527:web:a56c96436da69244097a42",
+  measurementId:     "G-5LXTMV8YTM"
+};
+const FB_PATH = 'blr_tracker/data';
+
+let _fbRef = null, _isFirebaseReady = false, _lastSavedAt = null;
+
+function initFirebase(){
+  if(typeof firebase === 'undefined'){ setSyncStatus('offline'); return; }
+  try{
+    firebase.initializeApp(FIREBASE_CONFIG);
+    _fbRef = firebase.database().ref(FB_PATH);
+    _isFirebaseReady = true;
+    setSyncStatus('connecting');
+
+    // Real-time listener — fires when any other user saves
+    _fbRef.on('value', snap => {
+      const remote = snap.val();
+      if(!remote || !Array.isArray(remote.db)){ setSyncStatus('online'); return; }
+      // Skip our own write echoing back
+      if(remote.savedAt && remote.savedAt === _lastSavedAt){ setSyncStatus('online'); return; }
+      // Apply only if remote data is newer than what we have locally
+      const remoteMs = remote.savedAt ? new Date(remote.savedAt).getTime() : 0;
+      const localMs  = _lastSavedAt   ? new Date(_lastSavedAt).getTime()   : 0;
+      if(remoteMs > localMs){
+        db.length=0; remote.db.forEach(r=>db.push(r));
+        nextId = remote.nextId || db.length+1;
+        if(remote.routeOrders)        Object.assign(routeOrders,       remote.routeOrders);
+        if(remote.routeStopTimes)     Object.assign(routeStopTimes,    remote.routeStopTimes);
+        if(remote.routeTimeConfirmed) Object.assign(routeTimeConfirmed,remote.routeTimeConfirmed);
+        if(remote.routeAvailSlots)    Object.assign(routeAvailSlots,   remote.routeAvailSlots);
+        _lastSavedAt = remote.savedAt;
+        try{ localStorage.setItem(STORAGE_KEY,JSON.stringify(remote)); }catch(e){}
+        updateStats(); renderLog();
+        toast('Synced from cloud ☁');
+      }
+      setSyncStatus('online');
+    }, err => { console.warn('Firebase listener error',err); setSyncStatus('offline'); });
+
+    // Monitor connection state for live indicator
+    firebase.database().ref('.info/connected').on('value', snap => {
+      setSyncStatus(snap.val() ? 'online' : 'offline');
+    });
+  }catch(e){
+    console.warn('Firebase init failed — running offline only',e);
+    setSyncStatus('offline');
+  }
+}
+
+function pushToFirebase(payload){
+  if(!_isFirebaseReady || !_fbRef) return;
+  _fbRef.set(payload).catch(e=>console.warn('Firebase write error',e));
+}
+
+function setSyncStatus(state){
+  const el=document.getElementById('save-indicator');
+  if(!el) return;
+  if(state==='online')      { el.textContent='Cloud sync ☁';        el.style.color='rgba(100,220,120,0.85)'; el.style.opacity='1'; }
+  else if(state==='connecting'){ el.textContent='Connecting…';      el.style.color='rgba(255,200,50,0.85)';  el.style.opacity='1'; }
+  else                      { el.textContent='Offline — local only';el.style.color='rgba(220,100,80,0.85)';  el.style.opacity='1'; }
+}
+
+/* ─── DATA ─── */
+const DAY_PLAN = [
+  {day:1,date:"11 Apr",dateLabel:"Saturday, 11 April",zone:"North",label:"North — Hebbal / Yelahanka",color:"#1e40af",bg:"#DBEAFE"},
+  {day:2,date:"12 Apr",dateLabel:"Sunday, 12 April",zone:"North-West",label:"North-West — Rajajinagar, Sadashivanagar",color:"#5b21b6",bg:"#EDE9FE"},
+  {day:3,date:"13 Apr",dateLabel:"Monday, 13 April",zone:"East",label:"East — Whitefield Corridor",color:"#065f46",bg:"#D1FAE5"},
+  {day:4,date:"14 Apr",dateLabel:"Tuesday, 14 April",zone:"Central",label:"Central — Indiranagar, Bellandur",color:"#92400e",bg:"#FEF3C7"},
+  {day:5,date:"15 Apr",dateLabel:"Wednesday, 15 April",zone:"South",label:"South — HSR, Sarjapur, Begur",color:"#9f1239",bg:"#FFE4E6"},
+  {day:6,date:"16 Apr",dateLabel:"Thursday, 16 April",zone:"South",label:"South — Banashankari",color:"#9f1239",bg:"#FFE4E6"},
+  {day:7,date:"17 Apr",dateLabel:"Friday, 17 April",zone:"Outer",label:"Outer — Attibele, Nelamangala, Chandapura",color:"#374151",bg:"#F3F4F6"},
+];
+
+const SEED = [
+  {name:"Rahul",phone:"8848472106",area:"Yelahanka",pin:"560064",date:"11th April",day:1,status:"confirmed",zone:"North"},
+  {name:"Deepa",phone:"9739098854",area:"Kempapura Bellary Rd",pin:"560024",date:"11th April",day:2,status:"confirmed",zone:"North"},
+  {name:"Karan",phone:"9880412012",area:"Vasant Nagar",pin:"560052",date:"11th April",day:3,status:"confirmed",zone:"East"},
+  {name:"Taniya",phone:"9168022255",area:"Indiranagar",pin:"560038",date:"11th April",day:4,status:"confirmed",zone:"Central"},
+  {name:"Nandhan",phone:"9353943593",area:"Kumaraswamy Layout",pin:"560111",date:"12 Apr",day:2,status:"confirmed",zone:"",notes:"# 483, 50 Feet Main Rd, Kumaraswamy Layout 2nd Stage"},
+  {name:"Keerthi",phone:"9353450684",area:"J P Nagar 7th Phase",pin:"",date:"12 Apr",day:2,status:"confirmed",zone:"",notes:"Flat No 402, 2nd Cross Kothnur Dinne Rd, Near Wellington School, Nrupathunganagar"},
+  {name:"Vivek",phone:"8105482588",area:"HSR Sector 2",pin:"560102",date:"12 Apr",day:2,status:"confirmed",zone:"",notes:"2041, Sobha Daffodil Apartment, 27th Main"},
+  {name:"Sonia",phone:"9003055606",area:"",pin:"",date:"12 Apr",day:2,status:"confirmed",zone:"",notes:""},
+  {name:"Neena",phone:"9986459906",area:"Yeshwanthpur",pin:"560022",date:"12 Apr",day:2,status:"confirmed",zone:"",notes:"E 1303, Platinum City Apartments, HMT Road"},
+  {name:"Anita",phone:"9591984434",area:"Electronic City Phase I",pin:"",date:"12 Apr",day:2,status:"confirmed",zone:"",notes:"Villa A56, Concorde Silicon Valley, Neeladri Road"},
+  {name:"Divya",phone:"9900098676",area:"C V Raman Nagar",pin:"560093",date:"13th April",day:4,status:"confirmed",zone:"Central"},
+  {name:"Sneha",phone:"9196196361",area:"Gunjur",pin:"560087",date:"13th April",day:3,status:"confirmed",zone:"East"},
+  {name:"Viji",phone:"9741913662",area:"Sobha Iris",pin:"560103",date:"13th April",day:5,status:"confirmed",zone:"South"},
+  {name:"Natasha Anton",phone:"9591340160",area:"Kammanhalli",pin:"560084",date:"13th April",day:2,status:"confirmed",zone:"North"},
+  {name:"Suman",phone:"9880152551",area:"Shantinagar",pin:"560027",date:"13th April",day:4,status:"confirmed",zone:"Central"},
+  {name:"Arun",phone:"9415060527",area:"Whitefield",pin:"560066",date:"20th April",day:3,status:"confirmed",zone:"East"},
+  {name:"Rajesh",phone:"9071367316",area:"Nelamangala",pin:"562123",date:"21st April",day:7,status:"confirmed",zone:"Outer"},
+  {name:"Chitra",phone:"9845034252",area:"Bommasandra Industrial Area",pin:"560099",date:"21st April",day:7,status:"confirmed",zone:"Outer"},
+];
+
+/* Complete Bangalore pincode coordinate database — 560001 to 562xxx */
+const PIN_COORDS = {
+  /* Central / Pete area */
+  "560001":[12.9716,77.5946],"560002":[12.9767,77.5713],"560003":[12.9925,77.5765],
+  "560004":[12.9850,77.5533],"560005":[12.9698,77.5998],"560006":[12.9951,77.5947],
+  "560007":[12.9800,77.5850],"560008":[12.9944,77.5496],"560009":[12.9756,77.5497],
+  "560010":[13.0097,77.5505],"560011":[13.0010,77.5704],"560012":[13.0202,77.5783],
+  "560013":[12.9989,77.5828],"560014":[12.9594,77.5457],"560015":[12.9820,77.6120],
+  "560016":[13.0166,77.6804],"560017":[13.0378,77.5978],"560018":[12.9695,77.5535],
+  "560019":[13.0013,77.6153],"560020":[12.9602,77.5776],"560021":[13.0105,77.5712],
+  "560022":[13.0289,77.5400],"560023":[13.0488,77.5631],"560024":[13.0494,77.5992],
+  "560025":[13.0380,77.5526],"560026":[12.9883,77.5728],"560027":[12.9561,77.5921],
+  "560028":[12.9459,77.5771],"560029":[12.9335,77.5584],"560030":[13.0264,77.5664],
+  "560031":[12.9450,77.5620],"560032":[12.9444,77.5471],"560033":[12.9228,77.5539],
+  "560034":[12.9634,77.6398],"560035":[12.9280,77.5948],"560036":[12.9381,77.5617],
+  "560037":[13.0534,77.5401],"560038":[12.9783,77.6408],"560039":[12.9498,77.6151],
+  "560040":[12.9236,77.6053],"560041":[12.9062,77.5611],"560042":[12.8851,77.5906],
+  "560043":[12.9620,77.6558],"560044":[12.9720,77.6280],"560045":[12.9800,77.6500],
+  "560046":[13.0624,77.5798],"560047":[12.9400,77.5357],"560048":[13.0751,77.5987],
+  "560049":[13.0223,77.7132],"560050":[13.0623,77.6424],
+  /* 560051 — HKP Road, Bangalore North */
+  "560051":[13.0180,77.5710],
+  "560052":[12.9896,77.7021],"560053":[12.9147,77.5025],"560054":[12.9050,77.4980],
+  "560055":[12.8963,77.6276],"560056":[12.9550,77.7050],"560057":[12.8750,77.6050],
+  "560058":[12.8626,77.5823],"560059":[12.9014,77.5447],"560060":[13.0817,77.5762],
+  "560061":[13.0617,77.6051],"560062":[12.9217,77.5228],"560063":[12.9085,77.5350],
+  "560064":[13.1020,77.5864],"560065":[12.9550,77.6650],"560066":[12.9698,77.7500],
+  "560067":[13.0550,77.6150],"560068":[12.9017,77.6780],"560069":[12.9651,77.5239],
+  "560070":[12.9001,77.4880],"560071":[12.9350,77.6900],"560072":[12.8850,77.7150],
+  "560073":[13.0601,77.5550],"560074":[12.9600,77.7400],"560075":[12.8701,77.5630],
+  "560076":[12.9101,77.5750],"560077":[12.8551,77.5901],"560078":[12.8988,77.5764],
+  "560079":[12.8401,77.6701],"560080":[12.8200,77.6300],"560081":[12.8900,77.6101],
+  "560082":[13.0400,77.6151],"560083":[13.0200,77.6551],"560084":[13.0146,77.6271],
+  "560085":[12.9801,77.5701],"560086":[12.9551,77.6351],"560087":[12.9215,77.7343],
+  "560088":[13.0750,77.6401],"560089":[13.0250,77.6601],"560090":[12.9951,77.6901],
+  "560091":[13.0600,77.6951],"560092":[12.9451,77.6551],"560093":[12.9859,77.6713],
+  "560094":[13.0651,77.5701],"560095":[12.9001,77.6451],"560096":[12.8801,77.6851],
+  "560097":[12.8651,77.5551],"560098":[13.0901,77.5951],"560099":[12.8124,77.6940],
+  "560100":[12.8498,77.6545],"560101":[12.9751,77.6051],"560102":[12.9119,77.6446],
+  "560103":[12.9299,77.6848],"560104":[12.8951,77.7201],"560105":[12.8701,77.7001],
+  "560106":[12.9001,77.5601],"560107":[12.9351,77.5151],"560108":[12.9651,77.5401],
+  "560109":[13.0801,77.6201],"560110":[12.9501,77.5951],"560111":[12.9301,77.6201],
+  "560112":[12.9101,77.6601],"560113":[12.8801,77.5701],"560114":[12.9201,77.5301],
+  "560115":[12.9801,77.6801],"560116":[13.0501,77.6701],
+  /* 562xxx — outer Bangalore */
+  "562101":[12.8201,77.7401],"562102":[12.7701,77.8001],"562103":[12.7501,77.6801],
+  "562104":[12.7201,77.6501],"562105":[12.8501,77.7801],"562106":[12.8101,77.7101],
+  "562107":[12.7829,77.7567],"562108":[12.8301,77.6901],"562109":[12.9101,77.8201],
+  "562110":[13.1701,77.5201],"562111":[13.2001,77.5501],"562112":[13.1501,77.6001],
+  "562113":[13.0301,77.7801],"562114":[13.0601,77.7401],"562115":[13.1901,77.4801],
+  "562117":[13.0901,77.4601],"562119":[13.2201,77.6001],"562120":[13.1101,77.4201],
+  "562121":[13.2501,77.5001],"562122":[13.0701,77.3801],"562123":[13.1138,77.3554],
+  "562124":[13.1401,77.3201],"562125":[13.1201,77.4201],"562126":[13.1601,77.4501],
+  "562127":[12.8701,77.4801],"562128":[12.8001,77.4501],"562129":[12.9501,77.4101],
+  "562130":[12.9001,77.7901],"562131":[12.8801,77.8201],"562132":[12.7301,77.7201],
+  "562135":[12.6501,77.7001],"562149":[13.3001,77.5501],
+};
+
+const PLAN_COORDS = [
+  {pin:"560064",lat:13.1020,lng:77.5864,zone:"North",day:1,area:"Hebbal / Yelahanka"},
+  {pin:"560022",lat:13.0289,lng:77.5400,zone:"North-West",day:2,area:"Rajajinagar"},
+  {pin:"560024",lat:13.0494,lng:77.5992,zone:"North",day:2,area:"Sadashivanagar"},
+  {pin:"560084",lat:13.0146,lng:77.6271,zone:"North",day:2,area:"Mathikere"},
+  {pin:"560016",lat:13.0166,lng:77.6804,zone:"East",day:3,area:"KR Puram"},
+  {pin:"560049",lat:13.0223,lng:77.7132,zone:"East",day:3,area:"Whitefield"},
+  {pin:"560052",lat:12.9896,lng:77.7021,zone:"East",day:3,area:"Mahadevapura"},
+  {pin:"560066",lat:12.9698,lng:77.7500,zone:"East",day:3,area:"Varthur Rd"},
+  {pin:"560087",lat:12.9215,lng:77.7343,zone:"East",day:3,area:"Varthur"},
+  {pin:"560038",lat:12.9783,lng:77.6408,zone:"Central",day:4,area:"Indiranagar"},
+  {pin:"560093",lat:12.9859,lng:77.6713,zone:"Central",day:4,area:"Bellandur"},
+  {pin:"560027",lat:12.9561,lng:77.5921,zone:"Central",day:4,area:"Wilson Garden"},
+  {pin:"560102",lat:12.9119,lng:77.6446,zone:"South",day:5,area:"HSR Layout"},
+  {pin:"560103",lat:12.9299,lng:77.6848,zone:"South",day:5,area:"Sarjapur Road"},
+  {pin:"560100",lat:12.8498,lng:77.6545,zone:"South",day:5,area:"Begur"},
+  {pin:"560078",lat:12.8988,lng:77.5764,zone:"South",day:6,area:"Banashankari"},
+  {pin:"560099",lat:12.8124,lng:77.6940,zone:"Outer",day:7,area:"Chandapura"},
+  {pin:"562107",lat:12.7829,lng:77.7567,zone:"Outer",day:7,area:"Attibele"},
+  {pin:"562123",lat:13.1138,lng:77.3554,zone:"Outer",day:7,area:"Nelamangala"},
+];
+
+let db = [...SEED.map((r,i)=>({...r,id:i+1}))];
+let nextId = db.length + 1;
+let lastSuggestedDay = null;
+let lastSuggestedPin = '';
+let lastSuggestedArea = '';
+
+/* ─── HELPERS ─── */
+function haversine(lat1,lng1,lat2,lng2){
+  const R=6371,dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function dayInfo(d){return DAY_PLAN.find(x=>x.day==d)||{label:"New/Other",color:"#888",bg:"#eee"}}
+function zoneClass(z){return 'zb-'+(z||'').toLowerCase().replace(/[^a-z]/g,'');}
+function zoneName(pin){
+  const p=PLAN_COORDS.find(x=>x.pin===pin);return p?p.zone:'—';
+}
+function dayChip(d){
+  const di=dayInfo(d);
+  const label=di.date?di.date:`Day ${d}`;
+  return `<span class="day-chip" style="background:${di.bg};color:${di.color}">${label}</span>`;
+}
+const STATUS_OPTIONS=[
+  {value:'paid',      label:'₹1 Paid',               cls:'sc-paid'},
+  {value:'scheduled', label:'Scheduled',              cls:'sc-scheduled'},
+  {value:'done',      label:'Installation Done',       cls:'sc-done'},
+  {value:'cancelled', label:'Cancelled',              cls:'sc-cancelled'},
+  {value:'rescheduled',label:'Rescheduled',           cls:'sc-rescheduled'},
+];
+function statusChip(s){
+  const opt=STATUS_OPTIONS.find(o=>o.value===s);
+  if(opt) return `<span class="status-chip ${opt.cls}">${opt.label}</span>`;
+  // legacy values — normalise display
+  if(s==='confirmed'||s==='pending') return '<span class="status-chip sc-paid">₹1 Paid</span>';
+  if(s==='future')    return '<span class="status-chip sc-scheduled">Scheduled</span>';
+  return `<span class="status-chip sc-scheduled">${s||'—'}</span>`;
+}
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2400);
+}
+function getInferredDay(pin){
+  const p=PLAN_COORDS.find(x=>x.pin===pin);
+  return p?p.day:null;
+}
+
+function resetToSeed(){
+  if(!confirm('Clear all data and reload seed?')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  if(_fbRef){
+    _fbRef.remove().then(()=>location.reload()).catch(()=>location.reload());
+  } else {
+    location.reload();
+  }
+}
+
+/* ─── NAVIGATION ─── */
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b=>{if(b.textContent.toLowerCase().includes(id.slice(0,4)))b.classList.add('active')});
+  if(id==='log') renderLog();
+  if(id==='schedule') renderSchedule();
+  if(id==='editdata') renderSheet();
+  if(id==='route'){
+    if(!window.routeSelectedDays) window.routeSelectedDays=new Set([DAY_PLAN[0].day]);
+    if(!window.routeActiveDay) window.routeActiveDay=[...window.routeSelectedDays][0];
+    renderRouteDayTabs();
+    setTimeout(()=>{
+      renderRouteView();
+      if(routeMap) routeMap.invalidateSize();
+    },50);
+  }
+}
+
+/* ─── STATS ─── */
+function updateStats(){
+  document.getElementById('s-total').textContent=db.length;
+  document.getElementById('s-done').textContent=db.filter(r=>r.status==='done').length;
+  document.getElementById('s-pending').textContent=db.filter(r=>r.status==='scheduled'||r.status==='paid'||r.status==='rescheduled'||r.status==='confirmed').length;
+  renderDayPills();
+  renderSchedule();
+  if(typeof renderRouteDayTabs==='function') renderRouteDayTabs();
+}
+
+function renderDayPills(){
+  const el=document.getElementById('day-pills');
+  el.innerHTML='';
+  for(let d=1;d<=7;d++){
+    const cnt=db.filter(r=>r.day==d).length;
+    const di=dayInfo(d);
+    const pct=Math.min(100,cnt*20);
+    el.innerHTML+=`<div class="day-pill">
+      <span class="dp-label" style="color:${di.color}">${di.date||'Day '+d}</span>
+      <span class="dp-count">${cnt}</span>
+      <div class="dist-bar-bg"><div class="dist-bar" style="width:${pct}%;background:${di.color}"></div></div>
+    </div>`;
+  }
+}
+
+/* ─── CALENDAR ─── */
+let selectedDay=null;
+let calStatusFilter=new Set(['paid','scheduled','done','cancelled','rescheduled']);
+
+// Normalise legacy status values to the current set
+function normalizeStatus(s){
+  if(!s||s==='confirmed'||s==='pending') return 'paid';
+  if(s==='future') return 'scheduled';
+  return s;
+}
+
+// Color/label map used by the calendar
+const CAL_STATUSES=[
+  {value:'done',       color:'#2E7D32', bg:'#E8F5E9', label:'Installation Done'},
+  {value:'scheduled',  color:'#1565C0', bg:'#E3F2FD', label:'Scheduled'},
+  {value:'paid',       color:'#B45309', bg:'#FFF8E1', label:'₹1 Paid'},
+  {value:'rescheduled',color:'#6A1B9A', bg:'#EDE7F6', label:'Rescheduled'},
+  {value:'cancelled',  color:'#B71C1C', bg:'#FCE4EC', label:'Cancelled'},
+];
+
+function toggleCalFilter(status){
+  const all=CAL_STATUSES.map(s=>s.value);
+  if(status==='all'){
+    calStatusFilter=calStatusFilter.size===all.length?new Set():new Set(all);
+  } else {
+    if(calStatusFilter.has(status)) calStatusFilter.delete(status);
+    else calStatusFilter.add(status);
+  }
+  renderCalendar();
+}
+
+function renderSchedule(){
+  renderCalendar();
+}
+
+function renderCalendar(){
+  const wrap=document.getElementById('cal-wrap');
+  if(!wrap) return;
+
+  const year=2025, month=3; // April 2025 (0-indexed)
+  const daysInMonth=30;
+  const firstDow=new Date(year,month,1).getDay(); // 0=Sun
+  const today=new Date();
+  const isThisMonth=(today.getFullYear()===year&&today.getMonth()===month);
+  const todayDate=today.getDate();
+
+  // Map install day numbers to April dates (11-17)
+  const installDateMap={};
+  DAY_PLAN.forEach(dp=>{
+    const d=parseInt(dp.date); // "11 Apr" -> 11
+    installDateMap[d]=dp;
+  });
+
+  // ── Filter pill bar ──
+  const monthTotals={};
+  CAL_STATUSES.forEach(s=>{
+    monthTotals[s.value]=db.filter(r=>normalizeStatus(r.status)===s.value&&getEntryCalDate(r)!==null).length;
+  });
+  const grandTotal=Object.values(monthTotals).reduce((a,b)=>a+b,0);
+  const allSelected=calStatusFilter.size===CAL_STATUSES.length;
+  const totalFiltered=db.filter(r=>calStatusFilter.has(normalizeStatus(r.status))&&getEntryCalDate(r)!==null).length;
+
+  let html=`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+    <button onclick="toggleCalFilter('all')" style="padding:5px 12px;border-radius:20px;border:1.5px solid ${allSelected?'var(--ink)':'var(--border)'};background:${allSelected?'var(--ink)':'transparent'};color:${allSelected?'#fff':'var(--ink2)'};font-size:12px;font-family:var(--sans);cursor:pointer;font-weight:500;transition:all 0.15s">All ${grandTotal?`(${grandTotal})`:''}</button>
+    ${CAL_STATUSES.map(s=>{
+      const active=calStatusFilter.has(s.value);
+      const cnt=monthTotals[s.value]||0;
+      return `<button onclick="toggleCalFilter('${s.value}')" style="display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:20px;border:1.5px solid ${active?s.color:'var(--border)'};background:${active?s.bg:'transparent'};color:${active?s.color:'var(--ink3)'};font-size:12px;font-family:var(--sans);cursor:pointer;transition:all 0.15s">
+        <span style="width:7px;height:7px;border-radius:50%;background:${active?s.color:'var(--ink3)'};display:inline-block;flex-shrink:0"></span>
+        ${s.label}${cnt?` <span style="background:${active?s.color:'var(--border)'};color:${active?'#fff':'var(--ink2)'};border-radius:10px;padding:0 6px;font-size:10px;font-family:var(--mono);line-height:1.7">${cnt}</span>`:''}
+      </button>`;
+    }).join('')}
+  </div>`;
+
+  const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  html+=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden">
+    <div style="background:var(--ink);padding:14px 18px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-family:var(--serif);font-size:18px;color:#fff;font-weight:300;letter-spacing:-0.01em">April 2025</span>
+      <span style="font-family:var(--mono);font-size:11px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.06em">${totalFiltered} ${allSelected?'total':calStatusFilter.size===1?[...calStatusFilter][0]:'filtered'}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border2)">
+      ${dow.map(d=>`<div style="padding:8px 0;text-align:center;font-size:10px;font-family:var(--mono);color:var(--ink3);text-transform:uppercase;letter-spacing:0.05em">${d}</div>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr)">`;
+
+  // empty cells before 1st
+  for(let i=0;i<firstDow;i++){
+    html+=`<div style="padding:10px;border:0.5px solid var(--border2);min-height:70px;background:var(--bg)"></div>`;
+  }
+
+    // Build a map: which install day covers which week (by Sunday date of that week)
+  const weekZoneMap={};
+  DAY_PLAN.forEach(dp=>{
+    const installDate=parseInt(dp.date); // e.g. 11
+    // find Sunday of the week containing this date
+    const dow=(firstDow+installDate-1)%7; // day of week (0=Sun)
+    const weekSunday=installDate-dow;
+    if(!weekZoneMap[weekSunday]) weekZoneMap[weekSunday]=dp;
+  });
+
+  for(let d=1;d<=daysInMonth;d++){
+    const dp=installDateMap[d];
+    const isInstall=!!dp;
+    const isToday=isThisMonth&&d===todayDate;
+    const isSel=selectedDay===d;
+    const installs=dp?db.filter(r=>getEntryCalDate(r)===d):[];
+    const basePins=[];
+    const dow2=(firstDow+d-1)%7;
+    const isWeekend=dow2===0||dow2===6;
+
+    // Find which week zone this day belongs to
+    const weekSunday=d-dow2;
+    const weekDp=weekZoneMap[weekSunday];
+
+    // Background: install day gets its full colour; other days get a very faint week zone tint
+    let cellBg='var(--surface)';
+    if(isSel) cellBg='var(--surface2)';
+
+    let border=`0.5px solid var(--border2)`;
+    if(isSel) border=`2px solid var(--ink2)`;
+    if(isToday&&!isSel) border=`1.5px solid var(--ink2)`;
+
+    // Per-status counts for this day (only active filters)
+    const dayCounts=isInstall?CAL_STATUSES.filter(s=>calStatusFilter.has(s.value)).map(s=>({
+      ...s, count:installs.filter(r=>normalizeStatus(r.status)===s.value).length
+    })).filter(o=>o.count>0):[];
+
+    let cellContent='';
+    if(dayCounts.length>0){
+      if(calStatusFilter.size===1){
+        // Single filter: big number in that status colour
+        cellContent=`<div style="font-size:24px;font-weight:700;color:${dayCounts[0].color};font-family:var(--serif);line-height:1">${dayCounts[0].count}</div>`;
+      } else {
+        // Multiple filters: stacked coloured dot + count rows
+        cellContent=`<div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start;padding-left:4px">
+          ${dayCounts.map(s=>`<div style="display:flex;align-items:center;gap:4px">
+            <div style="width:7px;height:7px;border-radius:50%;background:${s.color};flex-shrink:0"></div>
+            <span style="font-size:14px;font-weight:700;color:${s.color};font-family:var(--serif);line-height:1">${s.count}</span>
+          </div>`).join('')}
+        </div>`;
+      }
+    }
+
+    html+=`<div onclick="selectDay(${d})" style="border:${border};min-height:70px;cursor:${isInstall?'pointer':'default'};background:${cellBg};transition:background 0.15s;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+      <div style="position:absolute;top:7px;left:8px;display:flex;align-items:center;gap:4px">
+        <span style="font-size:12px;color:${isWeekend?'var(--ink3)':'var(--ink)'}">${d}</span>
+        ${isToday?`<span style="font-size:9px;font-family:var(--mono);background:var(--ink);color:#fff;padding:1px 5px;border-radius:8px">today</span>`:''}
+      </div>
+      ${cellContent}
+    </div>`;
+  }
+
+  // trailing empty cells
+  const total=firstDow+daysInMonth;
+  const trailing=(7-total%7)%7;
+  for(let i=0;i<trailing;i++){
+    html+=`<div style="padding:10px;border:0.5px solid var(--border2);min-height:70px;background:var(--bg)"></div>`;
+  }
+
+  html+=`</div></div>`;
+
+  // Colour legend for active statuses
+  const activeLegend=CAL_STATUSES.filter(s=>calStatusFilter.has(s.value)&&(monthTotals[s.value]||0)>0);
+  if(activeLegend.length>0){
+    html+=`<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;padding:0 2px;align-items:center">
+      ${activeLegend.map(s=>`<div style="display:flex;align-items:center;gap:5px">
+        <div style="width:8px;height:8px;border-radius:50%;background:${s.color}"></div>
+        <span style="font-size:11px;color:${s.color};font-family:var(--mono)">${s.label} — ${monthTotals[s.value]}</span>
+      </div>`).join('')}
+    </div>`;
+  }
+
+  wrap.innerHTML=html;
+
+  if(selectedDay) renderDayDetail(selectedDay);
+}
+
+function selectDay(d){
+  const installDateMap={};
+  DAY_PLAN.forEach(dp=>{ installDateMap[parseInt(dp.date)]=dp; });
+  if(!installDateMap[d]) return;
+  selectedDay=(selectedDay===d)?null:d;
+  renderCalendar();
+  if(selectedDay) setTimeout(()=>document.getElementById('cal-detail').scrollIntoView({behavior:'smooth',block:'nearest'}),50);
+}
+
+function renderDayDetail(d){
+  const detail=document.getElementById('cal-detail');
+  if(!detail) return;
+  const installDateMap={};
+  DAY_PLAN.forEach(dp=>{ installDateMap[parseInt(dp.date)]=dp; });
+  const dp=installDateMap[d];
+  if(!dp){detail.innerHTML='';return;}
+  const rows=db.filter(r=>r.day==dp.day);
+  const basePins=PLAN_COORDS.filter(p=>p.day==dp.day);
+  detail.innerHTML=`<div style="background:var(--surface);border:1.5px solid var(--accent);border-radius:var(--r2);padding:18px 20px;animation:fadeIn 0.2s ease">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+      <div style="font-family:var(--serif);font-size:22px;font-weight:600;color:var(--accent)">${dp.dateLabel}</div>
+      <span style="font-size:11px;color:var(--ink2)">${rows.length} confirmed · ${basePins.length} pincodes planned</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px">
+      ${basePins.map(p=>{
+        const confirmed=rows.filter(r=>r.pin===p.pin);
+        return `<div style="background:rgba(200,75,47,0.06);border:0.5px solid rgba(200,75,47,0.2);border-radius:var(--r);padding:10px 12px">
+          <div style="font-family:var(--mono);font-size:12px;color:var(--accent);margin-bottom:2px">${p.pin}</div>
+          <div style="font-size:12px;color:var(--ink2)">${p.area}</div>
+          ${confirmed.length?confirmed.map(r=>`<div style="font-size:11px;color:var(--ink);margin-top:4px;padding-top:4px;border-top:0.5px solid rgba(200,75,47,0.15)">${r.name}${r.phone?' · '+r.phone:''}</div>`).join(''):`<div style="font-size:11px;color:var(--ink3);margin-top:4px">no installs yet</div>`}
+        </div>`;
+      }).join('')}
+      ${rows.filter(r=>!basePins.find(p=>p.pin===r.pin)).map(r=>`
+        <div style="background:rgba(200,75,47,0.06);border:0.5px solid rgba(200,75,47,0.2);border-radius:var(--r);padding:10px 12px">
+          <div style="font-family:var(--mono);font-size:12px;color:var(--accent);margin-bottom:2px">${r.pin}</div>
+          <div style="font-size:12px;color:var(--ink2)">${r.area||'—'}</div>
+          <div style="font-size:11px;color:var(--ink);margin-top:4px">${r.name}${r.phone?' · '+r.phone:''}</div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+/* ─── LOG PAGE ─── */
+function renderLog(){
+  const q=(document.getElementById('search-input').value||'').toLowerCase();
+  const fd=document.getElementById('filter-day').value;
+  const fs=document.getElementById('filter-status').value;
+  let rows=db.filter(r=>{
+    if(fd && String(r.day)!==fd) return false;
+    if(fs && r.status!==fs) return false;
+    if(q && !`${r.name}${r.phone}${r.area}${r.pin}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  const tb=document.getElementById('log-tbody');
+  const empty=document.getElementById('log-empty');
+  if(!rows.length){tb.innerHTML='';empty.style.display='block';return;}
+  empty.style.display='none';
+  tb.innerHTML=rows.map((r,i)=>`<tr class="fade-in">
+    <td style="color:var(--ink3);font-family:var(--mono);font-size:11px">${String(r.id).padStart(2,'0')}</td>
+    <td style="font-weight:500">${r.name||'—'}</td>
+    <td style="font-family:var(--mono);font-size:12px">${r.phone||'—'}</td>
+    <td>${r.area||'—'}</td>
+    <td><span class="pin-chip">${r.pin||'—'}</span></td>
+    <td><span class="zone-badge ${zoneClass(r.zone||zoneName(r.pin))}">${r.zone||zoneName(r.pin)}</span></td>
+    <td>${r.day?dayChip(r.day):'<span style="color:var(--ink3)">—</span>'}</td>
+    <td style="font-size:12px;color:var(--ink2)">${r.date||'—'}</td>
+    <td>${statusChip(r.status||'confirmed')}</td>
+    <td><button class="delete-btn" onclick="deleteRow(${r.id})" title="Remove">✕</button></td>
+  </tr>`).join('');
+}
+
+function deleteRow(id){
+  db=db.filter(r=>r.id!==id);
+  renderLog();updateStats();toast('Entry removed');
+}
+
+/* ─── ADD INSTALLATION ─── */
+function autoDayFromPin(){
+  const pin=document.getElementById('f-pin').value.trim();
+  const hint=document.getElementById('f-hint');
+  if(pin.length===6){
+    const d=getInferredDay(pin);
+    if(d){
+      document.getElementById('f-day').value=String(d);
+      const di=dayInfo(d);
+      hint.textContent=`Auto-assigned → ${di.date||'Day '+d} (${di.zone})`;
+    } else hint.textContent='';
+  } else hint.textContent='';
+}
+
+function autoDayFromDate(){
+  const dateVal=document.getElementById('f-date').value;
+  if(!dateVal) return;
+  const d=new Date(dateVal).getDate();
+  const installDateMap={};
+  DAY_PLAN.forEach(dp=>{ installDateMap[parseInt(dp.date)]=dp; });
+  const dp=installDateMap[d];
+  if(dp && !document.getElementById('f-day').value){
+    document.getElementById('f-day').value=String(dp.day);
+    document.getElementById('f-hint').textContent='Auto-assigned → '+dp.date+' ('+dp.zone+')';
+  }
+}
+
+function addInstallation(){
+  const name=document.getElementById('f-name').value.trim();
+  const phone=document.getElementById('f-phone').value.trim();
+  const area=document.getElementById('f-area').value.trim();
+  const pin=document.getElementById('f-pin').value.trim();
+  const dateVal=document.getElementById('f-date').value;
+  let day=document.getElementById('f-day').value;
+  const status=document.getElementById('f-status').value;
+  const notes=document.getElementById('f-notes').value.trim();
+  if(!name && !phone){toast('Please enter at least a name or phone number');return;}
+  if(!day && dateVal){
+    const d=new Date(dateVal).getDate();
+    const installDateMap={};
+    DAY_PLAN.forEach(dp=>{ installDateMap[parseInt(dp.date)]=dp; });
+    const dp=installDateMap[d];
+    if(dp) day=String(dp.day);
+  }
+  const zone=zoneName(pin)||'';
+  const dayNum=day?parseInt(day)||null:null;
+  const di=dayNum?dayInfo(dayNum):null;
+  const dateDisplay=dateVal
+    ? new Date(dateVal).toLocaleDateString('en-IN',{day:'numeric',month:'short'})
+    : (di?di.dateLabel:'');
+  const entry={id:nextId++,name,phone,area,pin,
+    date:dateDisplay,day:dayNum,status,zone,notes};
+  db.unshift(entry);
+  updateStats();clearForm();toast('Added: '+(name||phone));
+  showPage('log');
+}
+
+function clearForm(){
+  ['f-name','f-phone','f-area','f-pin','f-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-date').value='';
+  document.getElementById('f-day').value='';
+  document.getElementById('f-status').value='paid';
+  document.getElementById('f-hint').textContent='';
+}
+
+/* ─── BULK IMPORT ─── */
+function bulkImport(){
+  const raw=document.getElementById('bulk-input').value.trim();
+  if(!raw){toast('Nothing to import');return;}
+  const lines=raw.split('\n').filter(l=>l.trim());
+  let count=0;
+  lines.forEach(line=>{
+    const parts=line.split(/\t|,/).map(s=>s.trim());
+    if(parts.length<2) return;
+    const [name,phone,area,pin,date,status]=parts;
+    const d=getInferredDay(pin||'');
+    const zone=zoneName(pin||'')||'';
+    db.unshift({id:nextId++,name:name||'',phone:phone||'',area:area||'',
+      pin:pin||'',date:date||'',day:d,status:status||'paid',zone});
+    count++;
+  });
+  updateStats();
+  document.getElementById('bulk-input').value='';
+  document.getElementById('bulk-hint').textContent=`Imported ${count} row${count!==1?'s':''}`;
+  setTimeout(()=>document.getElementById('bulk-hint').textContent='',3000);
+  if(count) showPage('log');
+}
+
+/* ─── SUGGEST ─── */
+function runSuggest(){
+  const pin=document.getElementById('sug-pin').value.trim();
+  const area=document.getElementById('sug-area').value.trim();
+  const existEl=document.getElementById('sug-existing');
+  const resEl=document.getElementById('sug-result');
+  existEl.textContent='';
+
+  if(!/^\d{6}$/.test(pin)){toast('Enter a valid 6-digit pincode');return;}
+
+  const alreadyPlan=PLAN_COORDS.find(p=>p.pin===pin);
+  if(alreadyPlan){
+    const apDi=dayInfo(alreadyPlan.day);
+    existEl.textContent=`Already in plan — ${apDi.date||'Day '+alreadyPlan.day} (${alreadyPlan.area})`;
+  }
+
+  let coords=PIN_COORDS[pin];
+  let usingFallback=false;
+  if(!coords){
+    const num=parseInt(pin);
+    const neighbors=[];
+    for(let d=1;d<=30;d++){
+      const lo=String(num-d),hi=String(num+d);
+      if(PIN_COORDS[lo]) neighbors.push(PIN_COORDS[lo]);
+      if(PIN_COORDS[hi]) neighbors.push(PIN_COORDS[hi]);
+      if(neighbors.length>=4) break;
+    }
+    if(neighbors.length>0){
+      const eLat=neighbors.reduce((s,c)=>s+c[0],0)/neighbors.length;
+      const eLng=neighbors.reduce((s,c)=>s+c[1],0)/neighbors.length;
+      coords=[eLat,eLng];
+      usingFallback=true;
+    } else {
+      resEl.style.display='block';
+      document.getElementById('sug-grid').innerHTML='<div class="sug-card" style="grid-column:1/-1;padding:20px"><div style="font-family:var(--mono);font-size:13px;color:var(--accent);margin-bottom:6px">Pincode '+pin+' outside database range</div><div style="font-size:13px;color:var(--ink2)">This pincode is outside Bangalore\'s 560xxx/562xxx range. Add it manually via the Add Installation page.</div></div>';
+      document.getElementById('sug-add-btn').style.display='none';
+      return;
+    }
+  }
+  const [lat,lng]=coords;
+
+  /* Score each day by average distance to its plan pins */
+  const dayScores=DAY_PLAN.map(dp=>{
+    const planPins=PLAN_COORDS.filter(p=>p.day===dp.day);
+    const dists=planPins.map(p=>haversine(lat,lng,p.lat,p.lng));
+    const avg=dists.length?dists.reduce((a,b)=>a+b,0)/dists.length:999;
+    const minDist=dists.length?Math.min(...dists):999;
+    const nearest=planPins[dists.indexOf(minDist)];
+    const existing=db.filter(r=>r.day===dp.day).length;
+    return {day:dp.day,date:dp.date,dateLabel:dp.dateLabel,zone:dp.zone,label:dp.label,color:dp.color,bg:dp.bg,avg,minDist,nearest,existing};
+  }).sort((a,b)=>a.avg-b.avg);
+
+  const top3=dayScores.slice(0,3);
+  const maxDist=Math.max(...top3.map(x=>x.avg));
+  lastSuggestedDay=top3[0].day;
+  if(usingFallback){
+    existEl.innerHTML=(existEl.innerHTML?existEl.innerHTML+'<br>':'')+'<span style="color:var(--ink3);font-size:11px">Coordinates estimated from nearby pincodes — suggestion is approximate</span>';
+  }
+  lastSuggestedPin=pin;
+  lastSuggestedArea=area;
+
+  resEl.style.display='block';
+  const grid=document.getElementById('sug-grid');
+  const ranks=['Best match','2nd choice','3rd choice'];
+  grid.innerHTML=top3.map((s,i)=>`
+    <div class="sug-card ${i===0?'best':''} fade-in" style="${i===0?'border-color:'+s.color+';background:'+s.bg+'22':''}">
+      <div class="sug-rank">${ranks[i]}</div>
+      <div class="sug-day" style="color:${s.color}">${s.date}</div>
+      <div class="sug-meta">${s.dateLabel} · ${s.zone}</div>
+      <div style="font-size:11px;color:var(--ink3);margin-bottom:4px">${s.existing} install${s.existing!==1?'s':''} so far</div>
+      <div class="dist-bar-bg"><div class="dist-bar" style="width:${Math.round((1-s.avg/maxDist)*100)}%;background:${s.color}"></div></div>
+      <div class="sug-reason">
+        Avg distance to ${s.date} pins: <strong>${s.avg.toFixed(1)} km</strong>
+        ${s.nearest?`<br>Nearest: <span style="font-family:var(--mono);font-size:11px">${s.nearest.pin}</span> ${s.nearest.area} (${s.minDist.toFixed(1)} km)`:''}
+      </div>
+    </div>
+  `).join('');
+
+  const addBtn=document.getElementById('sug-add-btn');
+  addBtn.style.display='inline-block';
+  addBtn.textContent=`Add ${pin} to ${top3[0].date} →`;
+}
+
+function addFromSuggest(){
+  if(!lastSuggestedDay) return;
+  document.getElementById('f-pin').value=lastSuggestedPin;
+  document.getElementById('f-area').value=lastSuggestedArea;
+  document.getElementById('f-day').value=String(lastSuggestedDay);
+  autoDayFromPin();
+  showPage('add');
+  toast(`Pincode ${lastSuggestedPin} loaded — fill in customer details`);
+}
+
+/* ─── ROUTE PLANNER ─── */
+let routeMap=null, routeMarkers=[], routePolyline=null, routeSortable=null;
+let routeOrders={}; // dayNum -> [ordered list of entries]
+let routeStopTimes={}; // entryId -> "HH:MM"
+let routeTimeConfirmed={}; // entryId -> bool
+
+const ROUTE_PRESETS=[
+  {label:'8AM',time:'08:00'},{label:'9AM',time:'09:00'},{label:'10AM',time:'10:00'},
+  {label:'11AM',time:'11:00'},{label:'12PM',time:'12:00'},{label:'1PM',time:'13:00'},
+  {label:'2PM',time:'14:00'},{label:'3PM',time:'15:00'},{label:'4PM',time:'16:00'},
+  {label:'5PM',time:'17:00'},{label:'6PM',time:'18:00'},{label:'7PM',time:'19:00'},
+  {label:'8PM',time:'20:00'}
+];
+
+let routeAvailSlots={}; // entryId -> string[] of available times e.g. ["09:00","11:00"]
+
+// Three-state cycle per pill:
+//   unselected  →  available (light blue)  →  confirmed (solid red)  →  unselected
+// Only one confirmed per stop at a time; multiple available allowed.
+function setStopTimePill(id,time24,dayNum){
+  if(!routeAvailSlots[id]) routeAvailSlots[id]=[];
+  const avail=routeAvailSlots[id];
+  const isConfirmed=routeStopTimes[id]===time24;
+  const isAvail=avail.includes(time24);
+
+  if(isConfirmed){
+    // confirmed → unselect entirely
+    delete routeStopTimes[id];
+    delete routeTimeConfirmed[id];
+    const i=avail.indexOf(time24); if(i>=0) avail.splice(i,1);
+  } else if(isAvail){
+    // available → confirm (previous confirmed pill stays in avail list)
+    routeStopTimes[id]=time24;
+    routeTimeConfirmed[id]=true;
+    // Reorder: confirmed+timed first sorted by time, then rest
+    const stops=db.filter(r=>r.day==dayNum);
+    const confirmed=stops.filter(r=>routeTimeConfirmed[r.id]&&routeStopTimes[r.id])
+      .sort((a,b)=>routeStopTimes[a.id].localeCompare(routeStopTimes[b.id]));
+    const rest=stops.filter(r=>!(routeTimeConfirmed[r.id]&&routeStopTimes[r.id]));
+    routeOrders[dayNum]=[...confirmed,...rest].map(r=>r.id);
+  } else {
+    // unselected → available
+    avail.push(time24);
+  }
+  renderRouteView();
+  scheduleSave();
+}
+
+function fmtTime(t){
+  if(!t) return '';
+  const [h,m]=t.split(':').map(Number);
+  const ampm=h>=12?'PM':'AM';
+  const h12=h%12||12;
+  return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+
+function initRouteMap(){
+  if(routeMap) return;
+  if(typeof L === 'undefined'){ console.error('Leaflet not loaded'); return; }
+  const placeholder=document.getElementById('route-map-placeholder');
+  if(placeholder) placeholder.style.display='none';
+  const mapEl=document.getElementById('route-map');
+  if(!mapEl) return;
+  routeMap=L.map(mapEl,{zoomControl:true}).setView([12.97,77.59],12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© OpenStreetMap contributors',maxZoom:18,
+    crossOrigin:true
+  }).addTo(routeMap);
+  setTimeout(()=>routeMap.invalidateSize(),200);
+}
+
+function renderRouteDayTabs(){
+  const tabs=document.getElementById('route-day-tabs');
+  if(!tabs) return;
+  if(!window.routeSelectedDays) window.routeSelectedDays=new Set([DAY_PLAN[0].day]);
+  const sel=window.routeSelectedDays;
+  const isMulti=sel.size>1;
+  const pillsHtml=DAY_PLAN.map(dp=>{
+    const cnt=getRouteStops(dp.day).length;
+    const active=sel.has(dp.day);
+    return `<button onclick="toggleRouteDay(${dp.day})" style="position:relative;padding:7px 14px;border-radius:20px;border:1.5px solid ${active?dp.color:'var(--border)'};background:${active?dp.bg:'var(--surface)'};color:${active?dp.color:'var(--ink2)'};font-size:12px;font-family:var(--sans);cursor:pointer;font-weight:${active?'600':'400'};transition:all 0.15s">${dp.date} <span style="opacity:0.7">${cnt} stops</span>${active&&isMulti?`<span style="position:absolute;top:-3px;right:-3px;width:7px;height:7px;border-radius:50%;background:${dp.color};border:1.5px solid var(--bg)"></span>`:''}
+    </button>`;
+  }).join('');
+  tabs.innerHTML=`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${pillsHtml}${isMulti?`<button onclick="clearMultiDay()" style="padding:5px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--ink2);font-size:11px;font-family:var(--mono);cursor:pointer">✕ single view</button>`:''}</div>${isMulti?`<div style="margin-top:7px;font-size:11px;color:var(--ink3);font-family:var(--mono)">Multi-date view — markers are colour-coded · use <strong>Move to →</strong> on each stop to reschedule</div>`:''}`;
+}
+
+function getRouteStops(dayNum){
+  const all=db.filter(r=>r.day==dayNum);
+  if(!routeOrders[dayNum]){
+    routeOrders[dayNum]=all.map(r=>r.id);
+  } else {
+    // Add any new entries not yet in order
+    all.forEach(r=>{ if(!routeOrders[dayNum].includes(r.id)) routeOrders[dayNum].push(r.id); });
+    // Remove deleted entries
+    routeOrders[dayNum]=routeOrders[dayNum].filter(id=>all.find(r=>r.id===id));
+  }
+  return routeOrders[dayNum].map(id=>all.find(r=>r.id===id)).filter(Boolean);
+}
+
+// Legacy compat — used by showPage on init
+function selectRouteDay(dayNum){
+  window.routeSelectedDays=new Set([dayNum]);
+  window.routeActiveDay=dayNum;
+  renderRouteDayTabs();
+  renderRouteView();
+}
+
+function toggleRouteDay(dayNum){
+  if(!window.routeSelectedDays) window.routeSelectedDays=new Set([dayNum]);
+  const sel=window.routeSelectedDays;
+  if(sel.has(dayNum)){
+    if(sel.size===1) return; // keep at least one day selected
+    sel.delete(dayNum);
+    if(window.routeActiveDay===dayNum) window.routeActiveDay=[...sel][0];
+  } else {
+    sel.add(dayNum);
+    window.routeActiveDay=dayNum;
+  }
+  renderRouteDayTabs();
+  renderRouteView();
+}
+
+function clearMultiDay(){
+  const day=window.routeActiveDay||[...(window.routeSelectedDays||new Set())][0]||DAY_PLAN[0].day;
+  window.routeSelectedDays=new Set([day]);
+  renderRouteDayTabs();
+  renderRouteView();
+}
+
+// Master render dispatcher — single or multi
+function renderRouteView(){
+  const sel=[...(window.routeSelectedDays||new Set())].sort((a,b)=>a-b);
+  if(sel.length<=1){
+    const day=sel[0]||DAY_PLAN[0].day;
+    renderRouteStops(day);
+    drawRouteMap(day);
+  } else {
+    renderMultiRouteStops(sel);
+    drawMultiRouteMap(sel);
+  }
+}
+
+function renderRouteStops(dayNum){
+  const stops=getRouteStops(dayNum);
+  const dp=dayInfo(dayNum);
+  const el=document.getElementById('route-stops');
+  if(!stops.length){
+    el.innerHTML='<div style="padding:24px;text-align:center;color:var(--ink3);font-size:13px;font-style:italic">No confirmed installations for this day yet</div>';
+    document.getElementById('route-summary').style.display='none';
+    return;
+  }
+  el.innerHTML=stops.map((r,i)=>{
+    const coords=PIN_COORDS[r.pin];
+    const hasCoords=!!coords;
+    const confirmedTime=routeStopTimes[r.id]||'';
+    const availList=routeAvailSlots[r.id]||[];
+    const pillsHtml=ROUTE_PRESETS.map(p=>{
+      const isConf=confirmedTime===p.time;
+      const isAvl=availList.includes(p.time);
+      let bg,border,color,fw='400';
+      if(isConf){       bg='var(--accent)';  border='var(--accent)';  color='#fff';    fw='600'; }
+      else if(isAvl){   bg='#E8F0FD';        border='#2F6EC8';        color='#1A56C4'; }
+      else{             bg='transparent';    border='var(--border)';  color='var(--ink3)'; }
+      const tip=isConf?'Click to clear':(isAvl?'Click to confirm as final slot':'Click to mark as available');
+      return `<button onmousedown="event.stopPropagation()" onclick="setStopTimePill(${r.id},'${p.time}',${dayNum})" title="${tip}" style="font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid ${border};background:${bg};color:${color};font-weight:${fw};cursor:pointer;font-family:var(--mono);transition:all 0.12s;white-space:nowrap">${p.label}</button>`;
+    }).join('');
+    // Status line
+    let statusHtml='';
+    if(confirmedTime){
+      statusHtml=`<div style="margin-top:6px;padding-left:32px;font-size:11px;color:#2E7D32;font-weight:500">✓ Confirmed: ${fmtTime(confirmedTime)}</div>`;
+    } else if(availList.length){
+      const labels=availList.map(t=>fmtTime(t)).join(', ');
+      statusHtml=`<div style="margin-top:6px;padding-left:32px;font-size:11px;color:#1A56C4">${availList.length} slot${availList.length>1?'s':''} open: ${labels} — tap highlighted to confirm</div>`;
+    }
+    return `<div class="route-stop" data-id="${r.id}" style="padding:10px 14px;border-bottom:0.5px solid var(--border2);cursor:grab;background:var(--surface);transition:background 0.1s" onmouseenter="this.style.background='var(--bg)'" onmouseleave="this.style.background='var(--surface)'">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--surface2);color:var(--ink);font-size:11px;font-weight:600;flex-shrink:0">${i+1}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500;color:var(--ink)">${r.name||'—'}</div>
+          <div style="font-size:11px;color:var(--ink3);font-family:var(--mono)">${r.pin||''}${r.phone?' · '+r.phone:''}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:1px;opacity:0.35;cursor:grab;flex-shrink:0">
+          <div style="width:14px;height:1.5px;background:var(--ink);border-radius:1px"></div>
+          <div style="width:14px;height:1.5px;background:var(--ink);border-radius:1px"></div>
+          <div style="width:14px;height:1.5px;background:var(--ink);border-radius:1px"></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;padding-left:32px">
+        ${pillsHtml}
+      </div>
+      ${statusHtml}
+    </div>`;
+  }).join('');
+
+  // Init SortableJS
+  if(routeSortable) routeSortable.destroy();
+  if(typeof Sortable === 'undefined'){ return; }
+  routeSortable=new Sortable(el,{
+    animation:150,
+    ghostClass:'route-drag-ghost',
+    onEnd:function(){
+      const newOrder=[...el.querySelectorAll('.route-stop')].map(el=>parseInt(el.dataset.id));
+      routeOrders[dayNum]=newOrder;
+      renderRouteView();
+      scheduleSave();
+    }
+  });
+
+  // Summary
+  const withCoords=stops.filter(r=>PIN_COORDS[r.pin]);
+  let totalDist=0;
+  for(let i=1;i<withCoords.length;i++){
+    const [la1,ln1]=PIN_COORDS[withCoords[i-1].pin];
+    const [la2,ln2]=PIN_COORDS[withCoords[i].pin];
+    totalDist+=haversine(la1,ln1,la2,ln2);
+  }
+  // Compute time span
+  const timed=stops.filter(r=>routeStopTimes[r.id]);
+  let timeSpanHtml='';
+  if(timed.length>=2){
+    const times=timed.map(r=>routeStopTimes[r.id]).sort();
+    timeSpanHtml=`<div><span style="font-weight:500;color:var(--ink)">${fmtTime(times[0])} – ${fmtTime(times[times.length-1])}</span> <span style="color:var(--ink3)">time range</span></div>`;
+  } else if(timed.length===1){
+    timeSpanHtml=`<div><span style="font-weight:500;color:var(--ink)">${fmtTime(routeStopTimes[timed[0].id])}</span> <span style="color:var(--ink3)">first stop</span></div>`;
+  }
+  const sumEl=document.getElementById('route-summary');
+  sumEl.style.display='block';
+  sumEl.innerHTML=`<div style="display:flex;gap:16px;flex-wrap:wrap">
+    <div><span style="font-weight:500;color:var(--ink)">${stops.length}</span> <span style="color:var(--ink3)">stops</span></div>
+    <div><span style="font-weight:500;color:var(--ink)">${withCoords.length}</span> <span style="color:var(--ink3)">mapped</span></div>
+    ${withCoords.length>1?`<div><span style="font-weight:500;color:var(--ink)">${totalDist.toFixed(1)} km</span> <span style="color:var(--ink3)">total distance</span></div>`:''}
+    ${timeSpanHtml}
+  </div>`;
+}
+
+function drawRouteMap(dayNum){
+  initRouteMap();
+  const stops=getRouteStops(dayNum);
+  const dp=dayInfo(dayNum);
+
+  // Clear old markers/lines
+  routeMarkers.forEach(m=>routeMap.removeLayer(m));
+  routeMarkers=[];
+  if(routePolyline){ routeMap.removeLayer(routePolyline); routePolyline=null; }
+  if(window._extraPolylines){ window._extraPolylines.forEach(p=>routeMap.removeLayer(p)); window._extraPolylines=[]; }
+
+  const points=[];
+  stops.forEach((r,i)=>{
+    const coords=PIN_COORDS[r.pin];
+    if(!coords) return;
+    const [lat,lng]=coords;
+    points.push([lat,lng]);
+
+    // Custom numbered marker
+    const icon=L.divIcon({
+      html:`<div style="width:28px;height:28px;border-radius:50%;background:${dp.color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.25);font-family:sans-serif">${i+1}</div>`,
+      iconSize:[28,28],iconAnchor:[14,14],className:''
+    });
+    const marker=L.marker([lat,lng],{icon})
+      .addTo(routeMap)
+      .bindPopup(`<div style="font-family:sans-serif;min-width:140px">
+        <div style="font-weight:600;font-size:13px;margin-bottom:4px">${r.name||'—'}</div>
+        <div style="font-size:11px;color:#666">${r.area||''}</div>
+        <div style="font-size:11px;font-family:monospace;color:#444;margin-top:2px">${r.pin}</div>
+        ${r.phone?`<div style="font-size:11px;color:#444;margin-top:2px">${r.phone}</div>`:''}
+        ${routeStopTimes[r.id]?`<div style="font-size:12px;color:${dp.color};margin-top:5px;font-weight:600">⏰ ${fmtTime(routeStopTimes[r.id])}</div>`:''}
+        <div style="font-size:10px;color:${dp.color};margin-top:4px;font-weight:600">Stop ${i+1}</div>
+      </div>`);
+    routeMarkers.push(marker);
+  });
+
+  if(points.length>1){
+    routePolyline=L.polyline(points,{
+      color:dp.color, weight:3, opacity:0.8, dashArray:'6,5'
+    }).addTo(routeMap);
+  }
+  if(points.length>0){
+    routeMap.fitBounds(points.length===1?L.latLngBounds([points[0],points[0]]).pad(0.5):L.latLngBounds(points).pad(0.12));
+  }
+  setTimeout(()=>routeMap.invalidateSize(),100);
+}
+
+function optimiseRoute(dayNum){
+  dayNum=dayNum||window.routeActiveDay||[...(window.routeSelectedDays||new Set())][0];
+  if(!dayNum) return;
+  const stops=db.filter(r=>r.day==dayNum);
+  const withCoords=stops.filter(r=>PIN_COORDS[r.pin]);
+  const noCoords=stops.filter(r=>!PIN_COORDS[r.pin]);
+  if(withCoords.length<2){ toast('Not enough mapped stops to sort'); return; }
+
+  // Greedy nearest-neighbour from first stop
+  const remaining=[...withCoords];
+  const sorted=[remaining.shift()];
+  while(remaining.length){
+    const last=sorted[sorted.length-1];
+    const [la1,ln1]=PIN_COORDS[last.pin];
+    let best=0, bestDist=Infinity;
+    remaining.forEach((r,i)=>{
+      const [la2,ln2]=PIN_COORDS[r.pin];
+      const d=haversine(la1,ln1,la2,ln2);
+      if(d<bestDist){bestDist=d;best=i;}
+    });
+    sorted.push(remaining.splice(best,1)[0]);
+  }
+  routeOrders[dayNum]=[...sorted,...noCoords].map(r=>r.id);
+  renderRouteView();
+  toast('Route optimised by proximity');
+}
+
+function copyRouteText(dayNum){
+  dayNum=dayNum||window.routeActiveDay||[...(window.routeSelectedDays||new Set())][0];
+  if(!dayNum) return;
+  const stops=getRouteStops(dayNum);
+  const dp=dayInfo(dayNum);
+  const lines=[`${dp.dateLabel} — Installation Route`,''];
+  stops.forEach((r,i)=>{
+    const t=routeStopTimes[r.id]?fmtTime(routeStopTimes[r.id]):'';
+    lines.push(`${i+1}. ${t?t+' — ':''}${r.name||'—'} | ${r.area||''} | ${r.pin} | ${r.phone||'—'}`);
+  });
+  navigator.clipboard.writeText(lines.join('\n')).then(()=>toast('Route copied to clipboard'));
+}
+
+/* ─── MULTI-DATE ROUTE VIEW ─── */
+
+function renderMultiRouteStops(selectedDays){
+  try{
+  const el=document.getElementById('route-stops');
+  const sumEl=document.getElementById('route-summary');
+  if(routeSortable){ try{routeSortable.destroy();}catch(e){} routeSortable=null; }
+
+  let totalStops=0;
+
+  const html=selectedDays.map(dayNum=>{
+    const dp=dayInfo(dayNum);
+    const stops=getRouteStops(dayNum);
+    totalStops+=stops.length;
+    const otherDays=selectedDays.filter(d=>d!==dayNum);
+
+    const stopsHtml=!stops.length
+      ?`<div style="padding:12px 14px;color:var(--ink3);font-size:13px;font-style:italic">No stops for this day</div>`
+      :stops.map((r,i)=>{
+          const confirmedTime=routeStopTimes[r.id]||'';
+          const availList=routeAvailSlots[r.id]||[];
+          const pillsHtml=ROUTE_PRESETS.map(p=>{
+            const isConf=confirmedTime===p.time, isAvl=availList.includes(p.time);
+            let bg,border,color,fw='400';
+            if(isConf){bg='var(--accent)';border='var(--accent)';color='#fff';fw='600';}
+            else if(isAvl){bg='#E8F0FD';border='#2F6EC8';color='#1A56C4';}
+            else{bg='transparent';border='var(--border)';color='var(--ink3)';}
+            const tip=isConf?'Click to clear':(isAvl?'Click to confirm':'Click to mark available');
+            return `<button onmousedown="event.stopPropagation()" onclick="setStopTimePill(${r.id},'${p.time}',${dayNum})" title="${tip}" style="font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid ${border};background:${bg};color:${color};font-weight:${fw};cursor:pointer;font-family:var(--mono);transition:all 0.12s;white-space:nowrap">${p.label}</button>`;
+          }).join('');
+          let statusHtml='';
+          if(confirmedTime) statusHtml=`<div style="margin-top:5px;padding-left:32px;font-size:11px;color:#2E7D32;font-weight:500">✓ Confirmed: ${fmtTime(confirmedTime)}</div>`;
+          else if(availList.length) statusHtml=`<div style="margin-top:5px;padding-left:32px;font-size:11px;color:#1A56C4">${availList.length} slot${availList.length>1?'s':''} open: ${availList.map(t=>fmtTime(t)).join(', ')} — tap to confirm</div>`;
+          const moveHtml=otherDays.length?`<div style="margin-top:6px;padding-left:32px;display:flex;gap:4px;align-items:center;flex-wrap:wrap"><span style="font-size:10px;color:var(--ink3);font-family:var(--mono)">move to →</span>${otherDays.map(od=>{const odp=dayInfo(od);return `<button onmousedown="event.stopPropagation()" onclick="moveStopToDay(${r.id},${od})" style="font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid ${odp.color};background:${odp.bg};color:${odp.color};cursor:pointer;font-family:var(--mono);white-space:nowrap">${odp.date}</button>`;}).join('')}</div>`:''
+          return `<div class="route-stop" data-id="${r.id}" data-day="${dayNum}" style="padding:10px 14px;border-bottom:0.5px solid var(--border2);cursor:grab;background:var(--surface);transition:background 0.1s" onmouseenter="this.style.background='var(--bg)'" onmouseleave="this.style.background='var(--surface)'">
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${dp.color};color:#fff;font-size:11px;font-weight:700;flex-shrink:0">${i+1}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:500;color:var(--ink)">${r.name||'—'}</div>
+                <div style="font-size:11px;color:var(--ink3);font-family:var(--mono)">${r.pin||''}${r.phone?' · '+r.phone:''}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:1px;opacity:0.3;flex-shrink:0">
+                <div style="width:14px;height:1.5px;background:var(--ink);border-radius:1px"></div>
+                <div style="width:14px;height:1.5px;background:var(--ink);border-radius:1px"></div>
+                <div style="width:14px;height:1.5px;background:var(--ink);border-radius:1px"></div>
+              </div>
+            </div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;padding-left:32px">${pillsHtml}</div>
+            ${statusHtml}${moveHtml}
+          </div>`;
+        }).join('');
+
+    return `<div style="background:${dp.bg};border-bottom:1px solid ${dp.color}33;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:3">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:10px;height:10px;border-radius:50%;background:${dp.color}"></div>
+          <span style="font-size:12px;font-weight:600;color:${dp.color};font-family:var(--mono)">${dp.date}</span>
+          <span style="font-size:11px;color:var(--ink2)">${stops.length} stop${stops.length!==1?'s':''}</span>
+        </div>
+        <button onclick="optimiseRoute(${dayNum})" style="font-size:10px;padding:2px 8px;border-radius:5px;border:1px solid ${dp.color};background:transparent;color:${dp.color};cursor:pointer;font-family:var(--mono)">Auto-sort</button>
+      </div>
+      <div id="route-stops-${dayNum}">${stopsHtml}</div>`;
+  }).join('');
+
+  el.innerHTML=html;
+
+  // Per-day sortable
+  selectedDays.forEach(dayNum=>{
+    const dayEl=document.getElementById(`route-stops-${dayNum}`);
+    if(!dayEl||typeof Sortable==='undefined') return;
+    new Sortable(dayEl,{
+      animation:150,ghostClass:'route-drag-ghost',
+      onEnd:function(){
+        routeOrders[dayNum]=[...dayEl.querySelectorAll('.route-stop')].map(el=>parseInt(el.dataset.id));
+        drawMultiRouteMap(selectedDays); scheduleSave();
+      }
+    });
+  });
+
+  sumEl.style.display='block';
+  sumEl.innerHTML=`<div style="display:flex;gap:16px;flex-wrap:wrap">
+    <div><span style="font-weight:500;color:var(--ink)">${selectedDays.length}</span> <span style="color:var(--ink3)">days</span></div>
+    <div><span style="font-weight:500;color:var(--ink)">${totalStops}</span> <span style="color:var(--ink3)">total stops</span></div>
+    <div style="color:var(--ink3)">Tap <strong>move to →</strong> to reschedule a stop</div>
+  </div>`;
+  }catch(err){
+    console.error('renderMultiRouteStops error:',err);
+    const el=document.getElementById('route-stops');
+    if(el) el.innerHTML=`<div style="padding:16px;color:red;font-size:12px">Render error: ${err.message}</div>`;
+  }
+}
+
+function drawMultiRouteMap(selectedDays){
+  initRouteMap();
+  routeMarkers.forEach(m=>routeMap.removeLayer(m)); routeMarkers=[];
+  if(routePolyline){ routeMap.removeLayer(routePolyline); routePolyline=null; }
+  if(window._extraPolylines){ window._extraPolylines.forEach(p=>routeMap.removeLayer(p)); } window._extraPolylines=[];
+
+  const allPoints=[];
+  selectedDays.forEach(dayNum=>{
+    const dp=dayInfo(dayNum);
+    const stops=getRouteStops(dayNum);
+    const pts=[];
+    stops.forEach((r,i)=>{
+      const coords=PIN_COORDS[r.pin]; if(!coords) return;
+      const [lat,lng]=coords; pts.push([lat,lng]); allPoints.push([lat,lng]);
+      const icon=L.divIcon({
+        html:`<div style="width:28px;height:28px;border-radius:50%;background:${dp.color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);font-family:sans-serif">${i+1}</div>`,
+        iconSize:[28,28],iconAnchor:[14,14],className:''
+      });
+      const mk=L.marker([lat,lng],{icon}).addTo(routeMap).bindPopup(`<div style="font-family:sans-serif;min-width:140px">
+        <div style="font-size:10px;font-weight:700;color:${dp.color};margin-bottom:3px">${dp.date}</div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:4px">${r.name||'—'}</div>
+        <div style="font-size:11px;color:#666">${r.area||''}</div>
+        <div style="font-size:11px;font-family:monospace;color:#444;margin-top:2px">${r.pin}</div>
+        ${r.phone?`<div style="font-size:11px;color:#444;margin-top:2px">${r.phone}</div>`:''}
+        ${routeStopTimes[r.id]?`<div style="font-size:12px;color:${dp.color};margin-top:5px;font-weight:600">⏰ ${fmtTime(routeStopTimes[r.id])}</div>`:''}
+      </div>`);
+      routeMarkers.push(mk);
+    });
+    if(pts.length>1){
+      const poly=L.polyline(pts,{color:dp.color,weight:2.5,opacity:0.75,dashArray:'6,5'}).addTo(routeMap);
+      window._extraPolylines.push(poly);
+    }
+  });
+  if(allPoints.length>0){
+    routeMap.fitBounds(allPoints.length===1?L.latLngBounds([allPoints[0],allPoints[0]]).pad(0.5):L.latLngBounds(allPoints).pad(0.1));
+  }
+  setTimeout(()=>routeMap.invalidateSize(),100);
+}
+
+function moveStopToDay(entryId,targetDay){
+  const entry=db.find(r=>r.id===entryId);
+  if(!entry) return;
+  const dp=DAY_PLAN.find(d=>d.day===targetDay);
+  if(!dp) return;
+  const fromDay=entry.day;
+  entry.day=targetDay;
+  entry.date=dp.date;
+  // Update order lists
+  if(routeOrders[fromDay]) routeOrders[fromDay]=routeOrders[fromDay].filter(id=>id!==entryId);
+  if(!routeOrders[targetDay]) routeOrders[targetDay]=[];
+  routeOrders[targetDay].push(entryId);
+  renderRouteDayTabs();
+  renderRouteView();
+  updateStats();
+  scheduleSave();
+  toast(`Moved ${entry.name||'stop'} to ${dp.date}`);
+}
+
+/* ─── PERSISTENCE ─── */
+const STORAGE_KEY='blr_install_tracker_v1';
+
+function saveToStorage(){
+  try{
+    const now=new Date().toISOString();
+    _lastSavedAt=now;
+    const payload={
+      db,nextId,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,
+      savedAt:now
+    };
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(payload));
+    pushToFirebase(payload);
+    showSaveIndicator();
+  }catch(e){ console.warn('localStorage save failed',e); }
+}
+
+function loadFromStorage(){
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(!raw) return false;
+    const p=JSON.parse(raw);
+    if(p.db&&Array.isArray(p.db)){
+      db.length=0;
+      p.db.forEach(r=>db.push(r));
+      nextId=p.nextId||db.length+1;
+      if(p.routeOrders) Object.assign(routeOrders,p.routeOrders);
+      if(p.routeStopTimes) Object.assign(routeStopTimes,p.routeStopTimes);
+      if(p.routeTimeConfirmed) Object.assign(routeTimeConfirmed,p.routeTimeConfirmed);
+      if(p.routeAvailSlots) Object.assign(routeAvailSlots,p.routeAvailSlots);
+      return p.savedAt;
+    }
+  }catch(e){ console.warn('localStorage load failed',e); }
+  return false;
+}
+
+function exportJSON(){
+  const payload={
+    db,nextId,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,
+    exportedAt:new Date().toISOString(),version:1
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='blr-install-tracker-'+(new Date().toISOString().slice(0,10))+'.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('Data exported');
+}
+
+function importJSON(file){
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const p=JSON.parse(e.target.result);
+      if(!p.db||!Array.isArray(p.db)) throw new Error('Invalid file');
+      db.length=0; p.db.forEach(r=>db.push(r));
+      nextId=p.nextId||db.length+1;
+      Object.assign(routeOrders,p.routeOrders||{});
+      Object.assign(routeStopTimes,p.routeStopTimes||{});
+      Object.assign(routeTimeConfirmed,p.routeTimeConfirmed||{});
+      Object.assign(routeAvailSlots,p.routeAvailSlots||{});
+      saveToStorage();
+      updateStats(); renderLog();
+      toast('Imported '+ p.db.length+' entries');
+    }catch(err){ toast('Import failed: '+err.message); }
+  };
+  reader.readAsText(file);
+}
+
+let _saveTimer=null;
+function scheduleSave(){
+  clearTimeout(_saveTimer);
+  _saveTimer=setTimeout(saveToStorage,600);
+}
+
+
+function showSaveIndicator(){
+  const el=document.getElementById('save-indicator');
+  if(!el) return;
+  el.textContent='Saved '+new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+  el.style.opacity='1';
+  clearTimeout(el._t);
+  el._t=setTimeout(()=>{
+    if(_isFirebaseReady) setSyncStatus('online');
+    else{ el.style.opacity='0.4'; }
+  },2500);
+}
+
+/* ─── EDIT DATA (spreadsheet view) ─── */
+function escAttr(s){ return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+
+// Returns which April calendar date (1-30) an entry belongs to
+function getEntryCalDate(r){
+  if(r.day>=1&&r.day<=7){
+    const dp=DAY_PLAN.find(d=>d.day===r.day);
+    if(dp) return parseInt(dp.date); // "11 Apr" → 11
+  }
+  if(r.date){ const m=r.date.match(/\d+/); if(m) return parseInt(m[0]); }
+  return null;
+}
+
+function sheetRow(r){
+  const statusOpts=STATUS_OPTIONS.map(o=>
+    `<option value="${o.value}"${normalizeStatus(r.status)===o.value?' selected':''}>${o.label}</option>`).join('');
+  return `<tr class="sheet-data-row" data-id="${r.id}" style="background:#FFFFFF">
+    <td class="drag-handle" style="cursor:grab;color:var(--ink3);text-align:center;padding:4px 8px;user-select:none;font-size:14px">⠿</td>
+    <td><input class="sheet-input" value="${escAttr(r.name)}" placeholder="Name" onchange="updateEntry(${r.id},'name',this.value)"/></td>
+    <td><input class="sheet-input" value="${escAttr(r.phone)}" placeholder="Phone" style="font-family:var(--mono)" onchange="updateEntry(${r.id},'phone',this.value)"/></td>
+    <td><input class="sheet-input" value="${escAttr(r.area)}" placeholder="Area / locality" onchange="updateEntry(${r.id},'area',this.value)"/></td>
+    <td><input class="sheet-input" value="${escAttr(r.pin)}" placeholder="560xxx" maxlength="6" style="font-family:var(--mono);width:80px" onchange="updateEntry(${r.id},'pin',this.value)"/></td>
+    <td><select class="sheet-input" onchange="updateEntry(${r.id},'status',this.value)">${statusOpts}</select></td>
+    <td><input class="sheet-input" value="${escAttr(r.notes||'')}" placeholder="Notes…" onchange="updateEntry(${r.id},'notes',this.value)"/></td>
+    <td><button class="delete-btn" onclick="deleteRow(${r.id});renderSheet()">✕</button></td>
+  </tr>`;
+}
+
+const DOW_LABELS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function renderSheet(){
+  const wrap=document.getElementById('sheet-wrap');
+  if(!wrap) return;
+  let html=`<div class="tbl-wrap"><table id="sheet-table" style="table-layout:auto">
+    <thead><tr>
+      <th style="width:22px"></th>
+      <th style="width:130px">Name</th><th style="width:120px">Phone</th>
+      <th>Area / Address</th><th style="width:80px">Pincode</th>
+      <th style="width:110px">Status</th>
+      <th style="width:180px">Notes</th><th style="width:32px"></th>
+    </tr></thead>`;
+
+  for(let calDay=1;calDay<=30;calDay++){
+    const planDay=DAY_PLAN.find(dp=>parseInt(dp.date)===calDay);
+    const rows=db.filter(r=>getEntryCalDate(r)===calDay);
+    const dowIdx=new Date(2025,3,calDay).getDay();
+    const dowLabel=DOW_LABELS[dowIdx];
+    const isWeekend=dowIdx===0||dowIdx===6;
+
+    const headerBg = '#EEF5EE';
+
+    html+=`<tbody class="sheet-group" data-calday="${calDay}">`;
+    html+=`<tr class="sheet-day-header"><td colspan="8" style="background:${headerBg};padding:6px 14px;border-top:1px solid #E0E0E0;">
+      <span style="font-family:var(--mono);font-size:11px;font-weight:${planDay?'600':'400'};color:#444;text-transform:uppercase;letter-spacing:0.07em">${calDay} Apr (${dowLabel})</span>
+      <button onclick="addSheetRow(${calDay})" style="margin-left:10px;font-size:11px;padding:1px 8px;border-radius:4px;border:1px solid #ccc;background:transparent;color:#888;cursor:pointer;font-family:var(--sans)">+ Add row</button>
+      ${rows.length?`<span style="margin-left:8px;font-size:11px;color:#888;">${rows.length} entr${rows.length===1?'y':'ies'}</span>`:''}
+    </td></tr>`;
+    rows.forEach(r=>{ html+=sheetRow(r); });
+    html+=`</tbody>`;
+  }
+
+  const unassigned=db.filter(r=>!getEntryCalDate(r));
+  if(unassigned.length){
+    html+=`<tbody class="sheet-group" data-calday="0"><tr class="sheet-day-header"><td colspan="8" style="background:var(--surface2);padding:7px 14px;border-top:2px solid var(--border)">
+      <span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--ink2);text-transform:uppercase;letter-spacing:0.07em">No date assigned</span>
+    </td></tr>`;
+    unassigned.forEach(r=>{ html+=sheetRow(r); });
+    html+=`</tbody>`;
+  }
+
+  html+=`</table></div>`;
+  wrap.innerHTML=html;
+  initSheetDrag();
+}
+
+function initSheetDrag(){
+  if(typeof Sortable==='undefined') return;
+  document.querySelectorAll('.sheet-group').forEach(tbody=>{
+    new Sortable(tbody,{
+      group:'sheet-rows',
+      draggable:'.sheet-data-row',
+      filter:'.sheet-day-header',
+      preventOnFilter:true,
+      handle:'.drag-handle',
+      animation:150,
+      ghostClass:'route-drag-ghost',
+      onEnd:function(evt){
+        const rowId=parseInt(evt.item.dataset.id);
+        const newCalDay=parseInt(evt.to.dataset.calday);
+        const oldCalDay=parseInt(evt.from.dataset.calday);
+        if(!rowId||newCalDay===oldCalDay) return;
+        const entry=db.find(r=>r.id===rowId);
+        if(!entry) return;
+        const planDay=DAY_PLAN.find(dp=>parseInt(dp.date)===newCalDay);
+        entry.date=newCalDay>0?newCalDay+' Apr':'';
+        entry.day=planDay?planDay.day:null;
+        updateStats();
+        scheduleSave();
+        renderSheet();
+        toast('Moved to '+newCalDay+' Apr');
+      }
+    });
+  });
+}
+
+function updateEntry(id,field,value){
+  const row=db.find(r=>r.id===id);
+  if(!row) return;
+  if(field==='day') row.day=value?parseInt(value)||null:null;
+  else row[field]=value;
+  if(field==='pin') row.zone=zoneName(value)||row.zone||'';
+  updateStats();
+  scheduleSave();
+}
+
+function addSheetRow(calDate){
+  const planDay=DAY_PLAN.find(dp=>parseInt(dp.date)===calDate);
+  const entry={id:nextId++,name:'',phone:'',area:'',pin:'',
+    date:calDate+' Apr',
+    day:planDay?planDay.day:null,
+    status:'confirmed',zone:'',notes:''};
+  db.push(entry);
+  updateStats();
+  renderSheet();
+  setTimeout(()=>{
+    const rows=document.querySelectorAll('#sheet-table tr[data-id]');
+    const newRow=[...rows].find(r=>parseInt(r.dataset.id)===entry.id);
+    if(newRow) newRow.querySelector('input').focus();
+  },50);
+}
+
+/* Patch all mutating functions to auto-save */
+const _origAddInst=addInstallation;
+addInstallation=function(){ _origAddInst.apply(this,arguments); scheduleSave(); };
+const _origDeleteRow=deleteRow;
+deleteRow=function(){ _origDeleteRow.apply(this,arguments); scheduleSave(); };
+const _origBulkImport=bulkImport;
+bulkImport=function(){ _origBulkImport.apply(this,arguments); scheduleSave(); };
+
+/* ─── INIT ─── */
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){
+    if(document.activeElement.id==='sug-pin'||document.activeElement.id==='sug-area') runSuggest();
+  }
+});
+
+// Load saved data or fall back to seed
+const savedAt=loadFromStorage();
+if(savedAt){
+  const d=new Date(savedAt);
+  console.log('Loaded from localStorage, saved at',d.toLocaleString());
+}
+updateStats();
+renderSchedule();
+renderLog();
+if(savedAt) setTimeout(()=>showSaveIndicator(),300);
+initFirebase();
+</script>
+
+<style>
+.route-drag-ghost{opacity:0.4;background:var(--surface2)!important}
+.sheet-input{background:transparent;border:none;border-bottom:1px solid transparent;width:100%;padding:4px 6px;font-size:13px;font-family:var(--sans);color:var(--ink);outline:none;transition:border-color 0.15s,background 0.15s;border-radius:3px}
+.sheet-input:focus{border-bottom-color:var(--accent);background:rgba(200,75,47,0.05)}
+select.sheet-input{cursor:pointer}
+#sheet-table td{padding:3px 6px;vertical-align:middle}
+#sheet-table thead th{position:sticky;top:0;z-index:2;background:var(--surface2)}
+</style>
+</body>
+</html>
