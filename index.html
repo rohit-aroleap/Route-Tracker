@@ -1245,25 +1245,44 @@ function initSugMapView(){
   const allPoints=[];
 
   const today=todayCalDay();
-  db.forEach(r=>{
-    const coords=PIN_COORDS[r.pin]; if(!coords) return;
+  // Filter to future/today only, group by pincode to handle overlaps
+  const eligible=db.filter(r=>{
+    if(!PIN_COORDS[r.pin]) return false;
     const cd=getEntryCalDate(r);
-    if(cd!==null && cd<today) return; // skip past dates
-    const [lat,lng]=coords;
-    const dp=calDpMap[cd]||{date:'?',color:'#9CA3AF',bg:'#F3F4F6'};
-    allPoints.push([lat,lng]);
-    const icon=L.divIcon({
-      html:`<div style="width:14px;height:14px;border-radius:50%;background:${dp.color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>`,
-      iconSize:[14,14],iconAnchor:[7,7],className:''
+    return cd===null || cd>=today;
+  });
+  // Group by pin for overlap jitter
+  const pinGroups={};
+  eligible.forEach(r=>{ (pinGroups[r.pin]=pinGroups[r.pin]||[]).push(r); });
+
+  Object.entries(pinGroups).forEach(([pin,group])=>{
+    const [baseLat,baseLng]=PIN_COORDS[pin];
+    const n=group.length;
+    group.forEach((r,i)=>{
+      const cd=getEntryCalDate(r);
+      const dp=calDpMap[cd]||{date:'?',color:'#9CA3AF',bg:'#F3F4F6'};
+      // Spiral jitter: 1 item = no offset, 2+ = small circle arrangement
+      let jLat=baseLat, jLng=baseLng;
+      if(n>1){
+        const angle=(2*Math.PI*i)/n - Math.PI/2;
+        const r0=0.0025; // ~250m radius
+        jLat=baseLat+r0*Math.cos(angle);
+        jLng=baseLng+r0*Math.sin(angle);
+      }
+      allPoints.push([jLat,jLng]);
+      const icon=L.divIcon({
+        html:`<div style="width:12px;height:12px;border-radius:50%;background:${dp.color};border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.35)"></div>`,
+        iconSize:[12,12],iconAnchor:[6,6],className:''
+      });
+      const mk=L.marker([jLat,jLng],{icon}).addTo(sugMap)
+        .bindPopup(`<div style="font-family:sans-serif;min-width:130px">
+          <div style="font-size:10px;font-weight:700;color:${dp.color};margin-bottom:3px">${dp.date}${n>1?' · '+n+' here':''}</div>
+          <div style="font-weight:600;font-size:13px">${r.name||'—'}</div>
+          <div style="font-size:11px;color:#666">${r.area||''}</div>
+          <div style="font-size:11px;font-family:monospace;color:#444;margin-top:2px">${r.pin||''}</div>
+        </div>`);
+      sugMapMarkers.push(mk);
     });
-    const mk=L.marker([lat,lng],{icon}).addTo(sugMap)
-      .bindPopup(`<div style="font-family:sans-serif;min-width:130px">
-        <div style="font-size:10px;font-weight:700;color:${dp.color};margin-bottom:3px">${dp.date}</div>
-        <div style="font-weight:600;font-size:13px">${r.name||'—'}</div>
-        <div style="font-size:11px;color:#666">${r.area||''}</div>
-        <div style="font-size:11px;font-family:monospace;color:#444;margin-top:2px">${r.pin||''}</div>
-      </div>`);
-    sugMapMarkers.push(mk);
   });
 
   if(allPoints.length>0){
@@ -1288,8 +1307,8 @@ function updateSugMapPin(searchLat, searchLng, searchPin){
   if(!sugMap) return;
   if(sugSearchMarker){ sugMap.removeLayer(sugSearchMarker); sugSearchMarker=null; }
   const starIcon=L.divIcon({
-    html:`<div style="width:34px;height:34px;border-radius:50%;background:#fff;border:3px solid #C84B2F;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 3px 10px rgba(200,75,47,0.55)">★</div>`,
-    iconSize:[34,34],iconAnchor:[17,17],className:''
+    html:`<div style="font-size:16px;line-height:1;color:#C84B2F;text-shadow:0 0 3px #fff,0 0 3px #fff,-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.4))">★</div>`,
+    iconSize:[16,16],iconAnchor:[8,8],className:''
   });
   sugSearchMarker=L.marker([searchLat,searchLng],{icon:starIcon,zIndexOffset:1000})
     .addTo(sugMap)
