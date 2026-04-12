@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.012</title>
+<title>BLR Tracker · v1.013</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.012</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.013</span></div>
     </div>
 
     <div class="stat-box">
@@ -774,6 +774,7 @@ function showPage(id){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('.nav-btn').forEach(b=>{if(b.textContent.toLowerCase().includes(id.slice(0,4)))b.classList.add('active')});
+  try{ localStorage.setItem('blr_active_page', id); }catch(e){}
   if(id==='log') renderLog();
   if(id==='schedule') renderSchedule();
   if(id==='editdata') renderSheet();
@@ -2333,6 +2334,11 @@ renderSchedule();
 renderLog();
 if(savedAt) setTimeout(()=>showSaveIndicator(),300);
 initFirebase();
+// Restore last active page after a short delay (so Firebase/render is ready)
+try{
+  const lastPage=localStorage.getItem('blr_active_page');
+  if(lastPage && lastPage!=='schedule') setTimeout(()=>showPage(lastPage),100);
+}catch(e){}
 </script>
 
 <style>
