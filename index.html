@@ -462,6 +462,7 @@ function initFirebase(){
       if(remoteMs > localMs){
         db.length=0; remote.db.forEach(r=>db.push(r));
         nextId = remote.nextId || db.length+1;
+        if(remote.sheetOrders)        Object.assign(sheetOrders,       remote.sheetOrders);
         if(remote.routeOrders)        Object.assign(routeOrders,       remote.routeOrders);
         if(remote.routeStopTimes)     Object.assign(routeStopTimes,    remote.routeStopTimes);
         if(remote.routeTimeConfirmed) Object.assign(routeTimeConfirmed,remote.routeTimeConfirmed);
@@ -1146,6 +1147,7 @@ function addFromSuggest(){
 }
 
 /* ─── ROUTE PLANNER ─── */
+let sheetOrders={}; // calDay -> [ordered entry ids] — persists manual row order in Edit Data
 let routeMap=null, routeMarkers=[], routePolyline=null, routeSortable=null;
 let routeOrders={}; // dayNum -> [ordered list of entries]
 let routeStopTimes={}; // entryId -> "HH:MM"
@@ -1624,7 +1626,7 @@ function saveToStorage(){
     const now=new Date().toISOString();
     _lastSavedAt=now;
     const payload={
-      db,nextId,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,
+      db,nextId,sheetOrders,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,
       savedAt:now
     };
     localStorage.setItem(STORAGE_KEY,JSON.stringify(payload));
@@ -1642,6 +1644,7 @@ function loadFromStorage(){
       db.length=0;
       p.db.forEach(r=>db.push(r));
       nextId=p.nextId||db.length+1;
+      if(p.sheetOrders) Object.assign(sheetOrders,p.sheetOrders);
       if(p.routeOrders) Object.assign(routeOrders,p.routeOrders);
       if(p.routeStopTimes) Object.assign(routeStopTimes,p.routeStopTimes);
       if(p.routeTimeConfirmed) Object.assign(routeTimeConfirmed,p.routeTimeConfirmed);
@@ -1654,7 +1657,7 @@ function loadFromStorage(){
 
 function exportJSON(){
   const payload={
-    db,nextId,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,
+    db,nextId,sheetOrders,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,
     exportedAt:new Date().toISOString(),version:1
   };
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
@@ -1675,6 +1678,7 @@ function importJSON(file){
       if(!p.db||!Array.isArray(p.db)) throw new Error('Invalid file');
       db.length=0; p.db.forEach(r=>db.push(r));
       nextId=p.nextId||db.length+1;
+      Object.assign(sheetOrders,p.sheetOrders||{});
       Object.assign(routeOrders,p.routeOrders||{});
       Object.assign(routeStopTimes,p.routeStopTimes||{});
       Object.assign(routeTimeConfirmed,p.routeTimeConfirmed||{});
@@ -1750,7 +1754,15 @@ function renderSheet(){
 
   for(let calDay=1;calDay<=30;calDay++){
     const planDay=DAY_PLAN.find(dp=>parseInt(dp.date)===calDay);
-    const rows=db.filter(r=>getEntryCalDate(r)===calDay);
+    const raw=db.filter(r=>getEntryCalDate(r)===calDay);
+    // Apply saved order if available, append any new entries not yet in order
+    let rows=raw;
+    if(sheetOrders[calDay]){
+      const ordered=sheetOrders[calDay].map(id=>raw.find(r=>r.id===id)).filter(Boolean);
+      const newEntries=raw.filter(r=>!sheetOrders[calDay].includes(r.id));
+      rows=[...ordered,...newEntries];
+      sheetOrders[calDay]=rows.map(r=>r.id); // keep clean
+    }
     const dowIdx=new Date(2025,3,calDay).getDay();
     const dowLabel=DOW_LABELS[dowIdx];
     const isWeekend=dowIdx===0||dowIdx===6;
@@ -1796,16 +1808,32 @@ function initSheetDrag(){
         const rowId=parseInt(evt.item.dataset.id);
         const newCalDay=parseInt(evt.to.dataset.calday);
         const oldCalDay=parseInt(evt.from.dataset.calday);
-        if(!rowId||newCalDay===oldCalDay) return;
-        const entry=db.find(r=>r.id===rowId);
-        if(!entry) return;
-        const planDay=DAY_PLAN.find(dp=>parseInt(dp.date)===newCalDay);
-        entry.date=newCalDay>0?newCalDay+' Apr':'';
-        entry.day=planDay?planDay.day:null;
-        updateStats();
+        if(!rowId) return;
+
+        // Always snapshot current DOM order for BOTH affected sections
+        // before any re-render (preserves manual ordering)
+        [evt.from, evt.to].forEach(tbody=>{
+          const day=parseInt(tbody.dataset.calday);
+          if(day>0){
+            sheetOrders[day]=[...tbody.querySelectorAll('.sheet-data-row')]
+              .map(tr=>parseInt(tr.dataset.id)).filter(Boolean);
+          }
+        });
+
+        // Cross-date move: update entry's date/day
+        if(newCalDay!==oldCalDay){
+          const entry=db.find(r=>r.id===rowId);
+          if(entry){
+            const planDay=DAY_PLAN.find(dp=>parseInt(dp.date)===newCalDay);
+            entry.date=newCalDay>0?newCalDay+' Apr':'';
+            entry.day=planDay?planDay.day:null;
+            updateStats();
+            toast('Moved to '+newCalDay+' Apr');
+          }
+        }
+
         scheduleSave();
         renderSheet();
-        toast('Moved to '+newCalDay+' Apr');
       }
     });
   });
