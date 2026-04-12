@@ -1105,13 +1105,13 @@ function runSuggest(){
     const nearest=planPins[planDists.indexOf(planMin)];
 
     // Score against actual db entries that have known coordinates
-    const dbEntries=db.filter(r=>r.day===dp.day && PIN_COORDS[r.pincode]);
-    const dbDists=dbEntries.map(r=>haversine(lat,lng,PIN_COORDS[r.pincode][0],PIN_COORDS[r.pincode][1]));
+    const dbEntries=db.filter(r=>r.day===dp.day && PIN_COORDS[r.pin]);
+    const dbDists=dbEntries.map(r=>haversine(lat,lng,PIN_COORDS[r.pin][0],PIN_COORDS[r.pin][1]));
     const dbAvg=dbDists.length?dbDists.reduce((a,b)=>a+b,0)/dbDists.length:null;
     const dbMin=dbDists.length?Math.min(...dbDists):null;
 
     // Exact pincode already in db for this day → big bonus
-    const exactMatch=db.some(r=>r.day===dp.day && r.pincode===pin);
+    const exactMatch=db.some(r=>r.day===dp.day && r.pin===pin);
 
     // Blend: if db entries exist, weight 60% db + 40% plan; else use plan only
     let blended;
@@ -1149,7 +1149,7 @@ function runSuggest(){
       <div class="dist-bar-bg"><div class="dist-bar" style="width:${Math.max(4,Math.round((1-(s.avg/(Math.max(...top3.map(x=>x.avg))||1)))*100))}%;background:${s.color}"></div></div>
       <div class="sug-reason">
         ${s.dbAvg!==null?`Avg to existing installs: <strong>${s.dbAvg.toFixed(1)} km</strong><br>`:''}
-        ${s.nearestDbEntry?`Nearest customer: <span style="font-family:var(--mono);font-size:11px">${s.nearestDbEntry.pincode}</span> ${s.nearestDbEntry.area||''} (${s.dbMin.toFixed(1)} km)<br>`:''}
+        ${s.nearestDbEntry?`Nearest customer: <span style="font-family:var(--mono);font-size:11px">${s.nearestDbEntry.pin}</span> ${s.nearestDbEntry.area||''} (${s.dbMin.toFixed(1)} km)<br>`:''}
         ${s.nearest?`Nearest zone: <span style="font-family:var(--mono);font-size:11px">${s.nearest.pin}</span> ${s.nearest.area} (${s.minDist.toFixed(1)} km)`:''}
       </div>
     </div>
