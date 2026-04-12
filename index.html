@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.003</title>
+<title>BLR Tracker · v1.004</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.003</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.004</span></div>
     </div>
 
     <div class="stat-box">
@@ -467,28 +467,76 @@ function initFirebase(){
     _isFirebaseReady = true;
     setSyncStatus('connecting');
 
-    // ── Per-row listeners ──────────────────────────────────────────────────
     const rowsRef = _fbRef.child('rows');
 
-    rowsRef.on('child_added', snap => {
-      const r = snap.val(); if(!r || !r.id) return;
-      if(_ignoreRowIds.has(r.id)){ _ignoreRowIds.delete(r.id); return; }
-      if(!db.find(x=>x.id===r.id)){ db.push(r); updateStats(); renderLog(); setSyncStatus('online'); }
-    });
+    // ── STEP 1: Full snapshot on connect — always load latest from Firebase ──
+    // This fixes the stale-localStorage problem: after refresh, Firebase truth wins
+    rowsRef.once('value').then(snap => {
+      const allRows = snap.val();
 
-    rowsRef.on('child_changed', snap => {
-      const r = snap.val(); if(!r || !r.id) return;
-      if(_ignoreRowIds.has(r.id)){ _ignoreRowIds.delete(r.id); return; }
-      const idx = db.findIndex(x=>x.id===r.id);
-      if(idx>=0){ db[idx]=r; updateStats(); renderLog(); setSyncStatus('online'); toast('Synced update ☁'); }
-    });
+      if(allRows && typeof allRows === 'object'){
+        // Merge Firebase rows into local db (Firebase wins for any conflict)
+        Object.values(allRows).forEach(r => {
+          if(!r || !r.id) return;
+          const idx = db.findIndex(x => x.id === r.id);
+          if(idx >= 0) db[idx] = r;   // update stale local row
+          else db.push(r);             // new row we didn't have
+        });
+        // Remove rows deleted by others (in local but gone from Firebase)
+        const fbIds = new Set(Object.values(allRows).filter(r=>r&&r.id).map(r=>r.id));
+        db = db.filter(r => fbIds.has(r.id));
+        nextId = Math.max(nextId, ...db.map(r=>r.id+1), 1);
+        updateStats(); renderLog();
+        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({db,nextId,sheetOrders,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,savedAt:new Date().toISOString()})); }catch(e){}
+        setSyncStatus('online');
+      } else if(!snap.exists()){
+        // ── Migration: v2/rows empty — check for old v1 blob ──────────────
+        return db2.ref(FB_PATH_V1).once('value').then(oldSnap => {
+          const old = oldSnap.val();
+          if(old && Array.isArray(old.db)){
+            toast('Migrating to per-row sync…');
+            const writes = {};
+            old.db.forEach(r=>{ writes[String(r.id)]=r; });
+            return rowsRef.set(writes).then(()=>_fbRef.child('meta').set({
+              nextId: old.nextId||old.db.length+1,
+              sheetOrders: old.sheetOrders||{},
+              routeOrders: old.routeOrders||{},
+              routeStopTimes: old.routeStopTimes||{},
+              routeTimeConfirmed: old.routeTimeConfirmed||{},
+              routeAvailSlots: old.routeAvailSlots||{},
+              _writtenBy: _clientId
+            })).then(()=>toast('Migration done ✓'));
+          }
+        });
+      }
 
-    rowsRef.on('child_removed', snap => {
-      const r = snap.val(); if(!r || !r.id) return;
-      if(_ignoreRowIds.has(r.id)){ _ignoreRowIds.delete(r.id); return; }
-      db = db.filter(x=>x.id!==r.id);
-      updateStats(); renderLog(); setSyncStatus('online'); toast('Synced delete ☁');
-    });
+      // ── STEP 2: After snapshot applied, attach live-change listeners ──────
+      rowsRef.on('child_added', snap => {
+        const r = snap.val(); if(!r || !r.id) return;
+        if(_ignoreRowIds.has(r.id)){ _ignoreRowIds.delete(r.id); return; }
+        if(!db.find(x=>x.id===r.id)){
+          db.push(r); updateStats(); renderLog();
+          toast('New entry synced ☁'); setSyncStatus('online');
+        }
+      });
+
+      rowsRef.on('child_changed', snap => {
+        const r = snap.val(); if(!r || !r.id) return;
+        if(_ignoreRowIds.has(r.id)){ _ignoreRowIds.delete(r.id); return; }
+        const idx = db.findIndex(x=>x.id===r.id);
+        if(idx>=0){ db[idx]=r; updateStats(); renderLog(); setSyncStatus('online'); }
+        else { db.push(r); updateStats(); renderLog(); setSyncStatus('online'); }
+      });
+
+      rowsRef.on('child_removed', snap => {
+        const r = snap.val(); if(!r || !r.id) return;
+        if(_ignoreRowIds.has(r.id)){ _ignoreRowIds.delete(r.id); return; }
+        const before = db.length;
+        db = db.filter(x=>x.id!==r.id);
+        if(db.length < before){ updateStats(); renderLog(); setSyncStatus('online'); toast('Entry removed by other user ☁'); }
+      });
+
+    }).catch(e=>{ console.warn('Firebase initial load failed',e); setSyncStatus('offline'); });
 
     // ── Meta listener (orders, times) ──────────────────────────────────────
     _fbRef.child('meta').on('value', snap => {
@@ -507,28 +555,6 @@ function initFirebase(){
     db2.ref('.info/connected').on('value', snap => {
       setSyncStatus(snap.val() ? 'online' : 'offline');
     });
-
-    // ── Migration: if v2/rows is empty but v1 blob exists, import it ───────
-    rowsRef.once('value').then(snap => {
-      if(snap.exists()) return; // v2 already has data
-      return db2.ref(FB_PATH_V1).once('value').then(oldSnap => {
-        const old = oldSnap.val();
-        if(old && Array.isArray(old.db)){
-          toast('Migrating to per-row sync…');
-          const writes = {};
-          old.db.forEach(r=>{ writes[String(r.id)]=r; });
-          return rowsRef.set(writes).then(()=>_fbRef.child('meta').set({
-            nextId: old.nextId||old.db.length+1,
-            sheetOrders: old.sheetOrders||{},
-            routeOrders: old.routeOrders||{},
-            routeStopTimes: old.routeStopTimes||{},
-            routeTimeConfirmed: old.routeTimeConfirmed||{},
-            routeAvailSlots: old.routeAvailSlots||{},
-            _writtenBy: _clientId
-          })).then(()=>toast('Migration done ✓'));
-        }
-      });
-    }).catch(e=>console.warn('Migration check failed',e));
 
   }catch(e){
     console.warn('Firebase init failed — running offline only',e);
