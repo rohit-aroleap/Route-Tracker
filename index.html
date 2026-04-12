@@ -1094,40 +1094,45 @@ function runSuggest(){
   }
   const [lat,lng]=coords;
 
-  /* Build full list of day descriptors: DAY_PLAN + any extra db days not in DAY_PLAN */
-  const dbDayNums=[...new Set(db.map(r=>r.day).filter(Boolean))];
-  const planDayNums=new Set(DAY_PLAN.map(d=>d.day));
-  const extraDays=dbDayNums.filter(d=>!planDayNums.has(d)).map(d=>{
-    const sample=db.find(r=>r.day===d);
-    return {day:d,date:sample.date||('Day '+d),dateLabel:sample.date||('Day '+d),zone:'Other',
-            label:'Other',color:'#6B7280',bg:'#F3F4F6'};
-  });
-  const allDays=[...DAY_PLAN,...extraDays];
+  /* Build scoring pool keyed by calendar date (Apr 1–30)
+     — uses getEntryCalDate() so entries with day:null (added after DAY_PLAN range) are included */
+  const planCalMap={};
+  DAY_PLAN.forEach(dp=>{ planCalMap[parseInt(dp.date)]=dp; });
 
-  /* Score each day — blend plan-zone proximity with actual db entry proximity */
-  const scoredDays=allDays.map(dp=>{
-    // Score against static plan pins
+  // Extra cal dates from db that aren't covered by DAY_PLAN
+  const dbCalDates=[...new Set(db.map(r=>getEntryCalDate(r)).filter(d=>d!==null))];
+  const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  dbCalDates.filter(d=>!planCalMap[d]).forEach(d=>{
+    const dow=DOW[new Date(2025,3,d).getDay()];
+    planCalMap[d]={day:null,date:d+' Apr',dateLabel:`${dow}, ${d} April`,zone:'Other',label:'Other',color:'#6B7280',bg:'#F3F4F6'};
+  });
+  const allDpList=Object.values(planCalMap).sort((a,b)=>parseInt(a.date)-parseInt(b.date));
+
+  /* Score each calendar date */
+  const scoredDays=allDpList.map(dp=>{
+    const calDay=parseInt(dp.date);
+    // Plan pins (uses dp.day which is null for extra dates — returns empty, fine)
     const planPins=PLAN_COORDS.filter(p=>p.day===dp.day);
     const planDists=planPins.map(p=>haversine(lat,lng,p.lat,p.lng));
     const planAvg=planDists.length?planDists.reduce((a,b)=>a+b,0)/planDists.length:999;
     const planMin=planDists.length?Math.min(...planDists):999;
     const nearest=planPins[planDists.indexOf(planMin)];
 
-    // Score against actual db entries that have known coordinates
-    const dbEntries=db.filter(r=>r.day===dp.day && PIN_COORDS[r.pin]);
+    // Actual db entries for this calendar date
+    const dbEntries=db.filter(r=>getEntryCalDate(r)===calDay && PIN_COORDS[r.pin]);
     const dbDists=dbEntries.map(r=>haversine(lat,lng,PIN_COORDS[r.pin][0],PIN_COORDS[r.pin][1]));
     const dbAvg=dbDists.length?dbDists.reduce((a,b)=>a+b,0)/dbDists.length:null;
     const dbMin=dbDists.length?Math.min(...dbDists):null;
 
-    // Exact pincode already in db for this day
-    const exactMatch=db.some(r=>r.day===dp.day && r.pin===pin);
+    // Exact pincode match on this calendar date
+    const exactMatch=db.some(r=>getEntryCalDate(r)===calDay && r.pin===pin);
 
-    // Blend: if db entries exist, weight 60% db + 40% plan; else use plan only
+    // Blend: 60% db proximity + 40% plan; fallback to plan-only
     let blended;
     if(dbAvg!==null){ blended=0.6*dbAvg+0.4*planAvg; }
     else { blended=planAvg; }
 
-    const existing=db.filter(r=>r.day===dp.day).length;
+    const existing=db.filter(r=>getEntryCalDate(r)===calDay).length;
     const nearestDbEntry=dbMin!==null?dbEntries[dbDists.indexOf(dbMin)]:null;
     return {day:dp.day,date:dp.date,dateLabel:dp.dateLabel,zone:dp.zone,label:dp.label,color:dp.color,bg:dp.bg,
             avg:blended,planAvg,dbAvg,dbMin,minDist:planMin,nearest,existing,exactMatch,nearestDbEntry};
