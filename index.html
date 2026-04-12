@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.004</title>
+<title>BLR Tracker · v1.005</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.004</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.005</span></div>
     </div>
 
     <div class="stat-box">
@@ -548,6 +548,7 @@ function initFirebase(){
       if(m.routeStopTimes)    Object.assign(routeStopTimes,    m.routeStopTimes);
       if(m.routeTimeConfirmed)Object.assign(routeTimeConfirmed,m.routeTimeConfirmed);
       if(m.routeAvailSlots)   Object.assign(routeAvailSlots,   m.routeAvailSlots);
+      if(m.routeGuide)        Object.assign(routeGuide,        m.routeGuide);
       setSyncStatus('online');
     });
 
@@ -582,7 +583,7 @@ function deleteRowFromFirebase(id){
 function pushMetaToFirebase(){
   if(!_isFirebaseReady || !_fbRef) return;
   _fbRef.child('meta').set({
-    nextId, sheetOrders, routeOrders, routeStopTimes, routeTimeConfirmed, routeAvailSlots,
+    nextId, sheetOrders, routeOrders, routeStopTimes, routeTimeConfirmed, routeAvailSlots, routeGuide,
     _writtenBy: _clientId
   }).catch(e=>console.warn('Firebase meta write error',e));
 }
@@ -1458,6 +1459,29 @@ let sugMap=null, sugMapMarkers=[];
 let routeOrders={}; // dayNum -> [ordered list of entries]
 let routeStopTimes={}; // entryId -> "HH:MM"
 let routeTimeConfirmed={}; // entryId -> bool
+let routeGuide={}; // entryId -> 1|2 (null = unassigned)
+
+const GUIDE_COLORS={
+  1:{color:'#1e40af',bg:'#DBEAFE',label:'Guide 1',light:'#93c5fd'},
+  2:{color:'#b45309',bg:'#FEF3C7',label:'Guide 2',light:'#fcd34d'},
+};
+const GUIDE_UNASSIGNED={color:'#6B7280',bg:'#F3F4F6',label:'Unassigned'};
+
+function guideInfo(id){ return GUIDE_COLORS[routeGuide[id]]||GUIDE_UNASSIGNED; }
+
+function setStopGuide(entryId, guide, dayNum){
+  if(routeGuide[entryId]===guide) delete routeGuide[entryId]; // toggle off
+  else routeGuide[entryId]=guide;
+  renderRouteView(); scheduleSave();
+}
+
+function fmtTimeShort(t){ // "09:00"→"9A", "14:30"→"2:30P"
+  if(!t) return '';
+  const [h,m]=t.split(':').map(Number);
+  const ampm=h<12?'A':'P';
+  const h12=h%12||12;
+  return m?`${h12}:${String(m).padStart(2,'0')}${ampm}`:`${h12}${ampm}`;
+}
 
 const ROUTE_PRESETS=[
   {label:'8AM',time:'08:00'},{label:'9AM',time:'09:00'},{label:'10AM',time:'10:00'},
@@ -1628,9 +1652,19 @@ function renderRouteStops(dayNum){
       statusHtml=`<div style="margin-top:6px;padding-left:32px;font-size:11px;color:#1A56C4">${availList.length} slot${availList.length>1?'s':''} open: ${labels} — tap highlighted to confirm</div>`;
     }
     const noCoordsBadge=!hasCoords?`<div style="font-size:10px;font-family:var(--mono);color:#92400e;background:#FEF3C7;border:1px solid #F59E0B44;padding:1px 7px;border-radius:10px;margin-top:3px;display:inline-block">📍 pincode not mapped</div>`:'';
-    return `<div class="route-stop" data-id="${r.id}" style="padding:10px 14px;border-bottom:0.5px solid var(--border2);cursor:grab;background:${hasCoords?'var(--surface)':'#FFFBEB'};transition:background 0.1s;${hasCoords?'':'border-left:3px solid #F59E0B;'}" onmouseenter="this.style.background='var(--bg)'" onmouseleave="this.style.background='${hasCoords?'var(--surface)':'#FFFBEB'}'">
+    const g=guideInfo(r.id);
+    const gAssigned=routeGuide[r.id];
+    const guidePills=[1,2].map(gn=>{
+      const gc=GUIDE_COLORS[gn];
+      const active=gAssigned===gn;
+      return `<button onmousedown="event.stopPropagation()" onclick="setStopGuide(${r.id},${gn},${dayNum})"
+        style="font-size:11px;padding:2px 10px;border-radius:12px;border:1.5px solid ${gc.color};background:${active?gc.color:'transparent'};color:${active?'#fff':gc.color};font-weight:${active?'600':'400'};cursor:pointer;font-family:var(--mono);transition:all 0.12s">${gc.label}</button>`;
+    }).join('');
+    const cardBg=!hasCoords?'#FFFBEB':(gAssigned?GUIDE_COLORS[gAssigned].bg+'55':'var(--surface)');
+    const borderLeft=!hasCoords?'border-left:3px solid #F59E0B;':(gAssigned?`border-left:3px solid ${GUIDE_COLORS[gAssigned].color};`:'');
+    return `<div class="route-stop" data-id="${r.id}" style="padding:10px 14px;border-bottom:0.5px solid var(--border2);cursor:grab;background:${cardBg};transition:background 0.1s;${borderLeft}">
       <div style="display:flex;align-items:center;gap:10px">
-        <div style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${hasCoords?'var(--surface2)':'#FEF3C7'};color:${hasCoords?'var(--ink)':'#92400e'};font-size:11px;font-weight:600;flex-shrink:0">${i+1}</div>
+        <div style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${gAssigned?GUIDE_COLORS[gAssigned].color:(hasCoords?'var(--surface2)':'#FEF3C7')};color:${gAssigned?'#fff':(hasCoords?'var(--ink)':'#92400e')};font-size:11px;font-weight:600;flex-shrink:0">${i+1}</div>
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:500;color:var(--ink)">${r.name||'—'}</div>
           <div style="font-size:11px;color:var(--ink3);font-family:var(--mono)">${r.pin||'—'}${r.phone?' · '+r.phone:''}</div>
@@ -1642,7 +1676,11 @@ function renderRouteStops(dayNum){
           <div style="width:14px;height:1.5px;background:var(--ink);border-radius:1px"></div>
         </div>
       </div>
-      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;padding-left:32px">
+      <div style="display:flex;gap:6px;align-items:center;margin-top:6px;padding-left:32px">
+        ${guidePills}
+        ${!gAssigned?'<span style="font-size:10px;color:var(--ink3);font-family:var(--mono)">assign to guide →</span>':''}
+      </div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;padding-left:32px">
         ${pillsHtml}
       </div>
       ${statusHtml}
@@ -1682,12 +1720,17 @@ function renderRouteStops(dayNum){
   }
   const sumEl=document.getElementById('route-summary');
   const noCoords=stops.filter(r=>!PIN_COORDS[r.pin]);
+  const g1stops=stops.filter(r=>routeGuide[r.id]===1);
+  const g2stops=stops.filter(r=>routeGuide[r.id]===2);
+  const unassigned=stops.filter(r=>!routeGuide[r.id]);
   sumEl.style.display='block';
-  sumEl.innerHTML=`<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+  sumEl.innerHTML=`<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
     <div><span style="font-weight:500;color:var(--ink)">${stops.length}</span> <span style="color:var(--ink3)">stops</span></div>
-    <div><span style="font-weight:500;color:var(--ink)">${withCoords.length}</span> <span style="color:var(--ink3)">mapped</span></div>
-    ${noCoords.length?`<div style="color:#92400e;font-size:12px">📍 ${noCoords.length} pincode${noCoords.length>1?'s':''} not found</div>`:''}
-    ${withCoords.length>1?`<div><span style="font-weight:500;color:var(--ink)">${totalDist.toFixed(1)} km</span> <span style="color:var(--ink3)">total distance</span></div>`:''}
+    ${g1stops.length?`<div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;border-radius:50%;background:${GUIDE_COLORS[1].color}"></div><span style="font-weight:500;color:${GUIDE_COLORS[1].color}">${g1stops.length}</span> <span style="color:var(--ink3)">Guide 1</span></div>`:''}
+    ${g2stops.length?`<div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;border-radius:50%;background:${GUIDE_COLORS[2].color}"></div><span style="font-weight:500;color:${GUIDE_COLORS[2].color}">${g2stops.length}</span> <span style="color:var(--ink3)">Guide 2</span></div>`:''}
+    ${unassigned.length?`<div style="color:var(--ink3);font-size:12px">${unassigned.length} unassigned</div>`:''}
+    ${noCoords.length?`<div style="color:#92400e;font-size:12px">📍 ${noCoords.length} not mapped</div>`:''}
+    ${withCoords.length>1?`<div><span style="font-weight:500;color:var(--ink)">${totalDist.toFixed(1)} km</span> <span style="color:var(--ink3)">total</span></div>`:''}
     ${timeSpanHtml}
   </div>`;
 }
@@ -1703,38 +1746,54 @@ function drawRouteMap(dayNum){
   if(routePolyline){ routeMap.removeLayer(routePolyline); routePolyline=null; }
   if(window._extraPolylines){ window._extraPolylines.forEach(p=>routeMap.removeLayer(p)); window._extraPolylines=[]; }
 
-  const points=[];
-  stops.forEach((r,i)=>{
-    const coords=PIN_COORDS[r.pin];
-    if(!coords) return;
-    const [lat,lng]=coords;
-    points.push([lat,lng]);
+  // Split stops by guide assignment
+  const guideGroups={1:[],2:[],0:[]};
+  stops.forEach((r,i)=>{ const g=routeGuide[r.id]||0; guideGroups[g].push({r,stopIdx:i}); });
 
-    // Custom numbered marker
+  // Assign marker colors: guide 1=blue, guide 2=amber, unassigned=day color
+  const markerColor=(r)=> routeGuide[r.id]? GUIDE_COLORS[routeGuide[r.id]].color : dp.color;
+
+  const allPoints=[];
+  stops.forEach((r,i)=>{
+    const coords=PIN_COORDS[r.pin]; if(!coords) return;
+    const [lat,lng]=coords;
+    allPoints.push([lat,lng]);
+    const mc=markerColor(r);
+    const timeStr=routeStopTimes[r.id]?fmtTimeShort(routeStopTimes[r.id]):'';
+    // Marker: circle with stop number + optional time line
     const icon=L.divIcon({
-      html:`<div style="width:28px;height:28px;border-radius:50%;background:${dp.color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.25);font-family:sans-serif">${i+1}</div>`,
-      iconSize:[28,28],iconAnchor:[14,14],className:''
+      html:`<div style="display:flex;flex-direction:column;align-items:center;gap:1px">
+        <div style="width:28px;height:28px;border-radius:50%;background:${mc};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);font-family:sans-serif">${i+1}</div>
+        ${timeStr?`<div style="background:${mc};color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:4px;white-space:nowrap;font-family:sans-serif;box-shadow:0 1px 3px rgba(0,0,0,0.25)">${timeStr}</div>`:''}
+      </div>`,
+      iconSize:[28,timeStr?44:28],iconAnchor:[14,14],className:''
     });
+    const gc=routeGuide[r.id]?GUIDE_COLORS[routeGuide[r.id]]:null;
     const marker=L.marker([lat,lng],{icon})
       .addTo(routeMap)
-      .bindPopup(`<div style="font-family:sans-serif;min-width:140px">
-        <div style="font-weight:600;font-size:13px;margin-bottom:4px">${r.name||'—'}</div>
+      .bindPopup(`<div style="font-family:sans-serif;min-width:150px">
+        ${gc?`<div style="font-size:10px;font-weight:700;color:${gc.color};margin-bottom:3px">${gc.label}</div>`:''}
+        <div style="font-weight:600;font-size:13px;margin-bottom:3px">${r.name||'—'}</div>
         <div style="font-size:11px;color:#666">${r.area||''}</div>
-        <div style="font-size:11px;font-family:monospace;color:#444;margin-top:2px">${r.pin}</div>
+        <div style="font-size:11px;font-family:monospace;color:#444;margin-top:2px">${r.pin||''}</div>
         ${r.phone?`<div style="font-size:11px;color:#444;margin-top:2px">${r.phone}</div>`:''}
-        ${routeStopTimes[r.id]?`<div style="font-size:12px;color:${dp.color};margin-top:5px;font-weight:600">⏰ ${fmtTime(routeStopTimes[r.id])}</div>`:''}
-        <div style="font-size:10px;color:${dp.color};margin-top:4px;font-weight:600">Stop ${i+1}</div>
+        ${routeStopTimes[r.id]?`<div style="font-size:12px;color:${mc};margin-top:5px;font-weight:600">⏰ ${fmtTime(routeStopTimes[r.id])}</div>`:''}
       </div>`);
     routeMarkers.push(marker);
   });
 
-  if(points.length>1){
-    routePolyline=L.polyline(points,{
-      color:dp.color, weight:3, opacity:0.8, dashArray:'6,5'
-    }).addTo(routeMap);
-  }
-  if(points.length>0){
-    routeMap.fitBounds(points.length===1?L.latLngBounds([points[0],points[0]]).pad(0.5):L.latLngBounds(points).pad(0.12));
+  // Draw separate polyline per guide (+ one for unassigned)
+  [[1,'solid'],[2,'solid'],[0,'dash']].forEach(([gn,style])=>{
+    const gstops=guideGroups[gn].filter(({r})=>PIN_COORDS[r.pin]);
+    if(gstops.length<2) return;
+    const pts=gstops.map(({r})=>PIN_COORDS[r.pin]);
+    const col=gn?GUIDE_COLORS[gn].color:dp.color;
+    const poly=L.polyline(pts,{color:col,weight:3,opacity:0.85,dashArray:gn?null:'6,5'}).addTo(routeMap);
+    if(!routePolyline) routePolyline=poly; else { if(!window._extraPolylines) window._extraPolylines=[]; window._extraPolylines.push(poly); }
+  });
+
+  if(allPoints.length>0){
+    routeMap.fitBounds(allPoints.length===1?L.latLngBounds([allPoints[0],allPoints[0]]).pad(0.5):L.latLngBounds(allPoints).pad(0.12));
   }
 
   // Unmapped overlay
@@ -1955,7 +2014,7 @@ function saveToStorage(){
   try{
     // localStorage: always save full snapshot for offline use
     const payload={
-      db,nextId,sheetOrders,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,
+      db,nextId,sheetOrders,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,routeGuide,
       savedAt:new Date().toISOString()
     };
     localStorage.setItem(STORAGE_KEY,JSON.stringify(payload));
@@ -1988,6 +2047,7 @@ function loadFromStorage(){
       if(p.routeStopTimes) Object.assign(routeStopTimes,p.routeStopTimes);
       if(p.routeTimeConfirmed) Object.assign(routeTimeConfirmed,p.routeTimeConfirmed);
       if(p.routeAvailSlots) Object.assign(routeAvailSlots,p.routeAvailSlots);
+      if(p.routeGuide) Object.assign(routeGuide,p.routeGuide);
       return p.savedAt;
     }
   }catch(e){ console.warn('localStorage load failed',e); }
