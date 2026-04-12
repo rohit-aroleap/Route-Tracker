@@ -1094,15 +1094,37 @@ function runSuggest(){
   }
   const [lat,lng]=coords;
 
-  /* Score each day by average distance to its plan pins */
+  /* Score each day — blend plan-zone proximity with actual db entry proximity */
+  /* Exact pincode match in db → heavily boost that day */
   const dayScores=DAY_PLAN.map(dp=>{
+    // Score against static plan pins
     const planPins=PLAN_COORDS.filter(p=>p.day===dp.day);
-    const dists=planPins.map(p=>haversine(lat,lng,p.lat,p.lng));
-    const avg=dists.length?dists.reduce((a,b)=>a+b,0)/dists.length:999;
-    const minDist=dists.length?Math.min(...dists):999;
-    const nearest=planPins[dists.indexOf(minDist)];
+    const planDists=planPins.map(p=>haversine(lat,lng,p.lat,p.lng));
+    const planAvg=planDists.length?planDists.reduce((a,b)=>a+b,0)/planDists.length:999;
+    const planMin=planDists.length?Math.min(...planDists):999;
+    const nearest=planPins[planDists.indexOf(planMin)];
+
+    // Score against actual db entries that have known coordinates
+    const dbEntries=db.filter(r=>r.day===dp.day && PIN_COORDS[r.pincode]);
+    const dbDists=dbEntries.map(r=>haversine(lat,lng,PIN_COORDS[r.pincode][0],PIN_COORDS[r.pincode][1]));
+    const dbAvg=dbDists.length?dbDists.reduce((a,b)=>a+b,0)/dbDists.length:null;
+    const dbMin=dbDists.length?Math.min(...dbDists):null;
+
+    // Exact pincode already in db for this day → big bonus
+    const exactMatch=db.some(r=>r.day===dp.day && r.pincode===pin);
+
+    // Blend: if db entries exist, weight 60% db + 40% plan; else use plan only
+    let blended;
+    if(dbAvg!==null){ blended=0.6*dbAvg+0.4*planAvg; }
+    else { blended=planAvg; }
+    // Exact match gives a strong pull toward 0 distance
+    if(exactMatch) blended=Math.max(0, blended-15);
+
     const existing=db.filter(r=>r.day===dp.day).length;
-    return {day:dp.day,date:dp.date,dateLabel:dp.dateLabel,zone:dp.zone,label:dp.label,color:dp.color,bg:dp.bg,avg,minDist,nearest,existing};
+    // nearestDb for display
+    const nearestDbEntry=dbMin!==null?dbEntries[dbDists.indexOf(dbMin)]:null;
+    return {day:dp.day,date:dp.date,dateLabel:dp.dateLabel,zone:dp.zone,label:dp.label,color:dp.color,bg:dp.bg,
+            avg:blended,planAvg,dbAvg,dbMin,minDist:planMin,nearest,existing,exactMatch,nearestDbEntry};
   }).sort((a,b)=>a.avg-b.avg);
 
   const top3=dayScores.slice(0,3);
@@ -1119,14 +1141,16 @@ function runSuggest(){
   const ranks=['Best match','2nd choice','3rd choice'];
   grid.innerHTML=top3.map((s,i)=>`
     <div class="sug-card ${i===0?'best':''} fade-in" style="${i===0?'border-color:'+s.color+';background:'+s.bg+'22':''}">
+      ${s.exactMatch?`<div style="font-size:10px;font-family:var(--mono);color:${s.color};background:${s.bg};padding:3px 7px;border-radius:4px;margin-bottom:6px;display:inline-block">★ Same pincode already scheduled</div>`:''}
       <div class="sug-rank">${ranks[i]}</div>
       <div class="sug-day" style="color:${s.color}">${s.date}</div>
       <div class="sug-meta">${s.dateLabel} · ${s.zone}</div>
       <div style="font-size:11px;color:var(--ink3);margin-bottom:4px">${s.existing} install${s.existing!==1?'s':''} so far</div>
-      <div class="dist-bar-bg"><div class="dist-bar" style="width:${Math.round((1-s.avg/maxDist)*100)}%;background:${s.color}"></div></div>
+      <div class="dist-bar-bg"><div class="dist-bar" style="width:${Math.max(4,Math.round((1-(s.avg/(Math.max(...top3.map(x=>x.avg))||1)))*100))}%;background:${s.color}"></div></div>
       <div class="sug-reason">
-        Avg distance to ${s.date} pins: <strong>${s.avg.toFixed(1)} km</strong>
-        ${s.nearest?`<br>Nearest: <span style="font-family:var(--mono);font-size:11px">${s.nearest.pin}</span> ${s.nearest.area} (${s.minDist.toFixed(1)} km)`:''}
+        ${s.dbAvg!==null?`Avg to existing installs: <strong>${s.dbAvg.toFixed(1)} km</strong><br>`:''}
+        ${s.nearestDbEntry?`Nearest customer: <span style="font-family:var(--mono);font-size:11px">${s.nearestDbEntry.pincode}</span> ${s.nearestDbEntry.area||''} (${s.dbMin.toFixed(1)} km)<br>`:''}
+        ${s.nearest?`Nearest zone: <span style="font-family:var(--mono);font-size:11px">${s.nearest.pin}</span> ${s.nearest.area} (${s.minDist.toFixed(1)} km)`:''}
       </div>
     </div>
   `).join('');
