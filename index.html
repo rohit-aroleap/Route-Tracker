@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.018</title>
+<title>BLR Tracker · v1.019</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.018</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.019</span></div>
     </div>
 
     <div class="stat-box">
@@ -388,7 +388,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
       <!-- Day selector -->
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px" id="route-day-tabs"></div>
 
-      <div style="display:grid;grid-template-columns:320px 1fr;gap:16px;min-height:520px" id="route-body">
+      <div style="display:grid;grid-template-columns:480px 1fr;gap:16px;min-height:520px" id="route-body">
 
         <!-- Left: ordered stop list -->
         <div style="display:flex;flex-direction:column;gap:10px;height:520px">
@@ -398,9 +398,9 @@ tr:hover td{background:rgba(0,0,0,0.015)}
               <button class="btn btn-secondary" style="font-size:11px;padding:3px 9px" onclick="optimiseRoute()">Auto-sort by proximity</button>
               <button class="btn btn-secondary" style="font-size:11px;padding:3px 9px" onclick="copyRouteText()">Copy list</button>
             </div>
-            <div id="route-stops" style="overflow-y:auto;flex:1;min-height:0"></div>
-            <div style="padding:7px 14px;border-top:1px solid var(--border2);font-size:11px;color:var(--ink3);font-family:var(--mono);flex-shrink:0">
-              Drag to reorder · auto-saves
+            <div id="route-stops" style="flex:1;min-height:0;overflow:hidden"></div>
+            <div style="padding:5px 10px;border-top:1px solid var(--border2);font-size:10px;color:var(--ink3);font-family:var(--mono);flex-shrink:0">
+              Drag between columns to assign · auto-saves
             </div>
           </div>
           <div id="route-summary" style="display:none"></div>
@@ -1663,88 +1663,84 @@ function renderRouteView(){
 }
 
 function renderRouteStops(dayNum){
-  const allStops=getSortedRouteStops(dayNum); // Murthy (time order) → Divakar (time order) → Unassigned
-  const dp=dayInfo(dayNum);
+  const allStops=getSortedRouteStops(dayNum);
   const el=document.getElementById('route-stops');
 
   if(!allStops.length){
     el.innerHTML='<div style="padding:24px;text-align:center;color:var(--ink3);font-size:13px;font-style:italic">No confirmed installations for this day yet</div>';
-    document.getElementById('route-summary').style.display='none';
     return;
   }
 
-  // Order: Murthy (time-sorted) → Divakar (time-sorted) → Unassigned
-  const stops=allStops;
-  el.innerHTML=stops.map((r)=>{
-    const i=allStops.indexOf(r); // use global index to match map marker numbers
-    const coords=PIN_COORDS[r.pin];
-    const hasCoords=!!coords;
+  // Card HTML for a single stop
+  function cardHtml(r){
+    const globalIdx=allStops.indexOf(r);
+    const hasCoords=!!PIN_COORDS[r.pin];
     const confirmedTime=routeStopTimes[r.id]||'';
     const availList=routeAvailSlots[r.id]||[];
+    const gAssigned=routeGuide[r.id];
+    const colColor=gAssigned?GUIDE_COLORS[gAssigned].color:'#9CA3AF';
     const pillsHtml=ROUTE_PRESETS.map(p=>{
       const isConf=confirmedTime===p.time;
       const isAvl=availList.includes(p.time);
-      let bg,border,color,fw='400';
-      if(isConf){       bg='var(--accent)';  border='var(--accent)';  color='#fff';    fw='600'; }
-      else if(isAvl){   bg='#E8F0FD';        border='#2F6EC8';        color='#1A56C4'; }
-      else{             bg='transparent';    border='var(--border)';  color='var(--ink3)'; }
-      const tip=isConf?'Click to clear':(isAvl?'Click to confirm as final slot':'Click to mark as available');
-      return `<button onmousedown="event.stopPropagation()" onclick="setStopTimePill(${r.id},'${p.time}',${dayNum})" title="${tip}" style="font-size:10px;padding:1px 5px;border-radius:10px;border:1px solid ${border};background:${bg};color:${color};font-weight:${fw};cursor:pointer;font-family:var(--mono);transition:all 0.12s;white-space:nowrap;flex-shrink:0">${p.label}</button>`;
+      let bg,bdr,color,fw='400';
+      if(isConf){     bg='var(--accent)'; bdr='var(--accent)'; color='#fff'; fw='600'; }
+      else if(isAvl){ bg='#E8F0FD';       bdr='#2F6EC8';       color='#1A56C4'; }
+      else{           bg='transparent';   bdr='var(--border)';  color='var(--ink3)'; }
+      return `<button onmousedown="event.stopPropagation()" onclick="setStopTimePill(${r.id},'${p.time}',${dayNum})" style="font-size:9px;padding:1px 4px;border-radius:8px;border:1px solid ${bdr};background:${bg};color:${color};font-weight:${fw};cursor:pointer;font-family:var(--mono);white-space:nowrap;flex-shrink:0">${p.label}</button>`;
     }).join('');
-    // Status line (only for unconfirmed available slots)
-    let statusHtml='';
-    if(!confirmedTime && availList.length){
-      const labels=availList.map(t=>fmtTime(t)).join(', ');
-      statusHtml=`<div style="margin-top:2px;font-size:10px;color:#1A56C4;font-family:var(--mono)">${labels} — confirm one</div>`;
-    }
-    const noCoordsBadge=!hasCoords?`<span style="font-size:9px;font-family:var(--mono);color:#92400e;background:#FEF3C7;border:1px solid #F59E0B44;padding:0 5px;border-radius:8px;flex-shrink:0">no pin</span>`:'';
-    const gAssigned=routeGuide[r.id];
-    const guidePills=[1,2].map(gn=>{
-      const gc=GUIDE_COLORS[gn];
-      const active=gAssigned===gn;
-      return `<button onmousedown="event.stopPropagation()" onclick="setStopGuide(${r.id},${gn},${dayNum})"
-        style="font-size:10px;padding:1px 7px;border-radius:10px;border:1.5px solid ${gc.color};background:${active?gc.color:'transparent'};color:${active?'#fff':gc.color};font-weight:${active?'600':'400'};cursor:pointer;font-family:var(--mono);transition:all 0.12s;white-space:nowrap;flex-shrink:0">${gc.label}</button>`;
-    }).join('');
-    const cardBg=!hasCoords?'#FFFBEB':(gAssigned?GUIDE_COLORS[gAssigned].bg+'55':'var(--surface)');
-    const borderLeft=!hasCoords?'border-left:3px solid #F59E0B;':(gAssigned?`border-left:3px solid ${GUIDE_COLORS[gAssigned].color};`:'');
-    return `<div class="route-stop" data-id="${r.id}" style="padding:6px 10px;border-bottom:0.5px solid var(--border2);cursor:grab;background:${cardBg};transition:background 0.1s;${borderLeft}">
-      <!-- Row 1: number + name + guide pills + drag -->
-      <div style="display:flex;align-items:center;gap:6px">
-        <div style="display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:${gAssigned?GUIDE_COLORS[gAssigned].color:(hasCoords?'var(--surface2)':'#FEF3C7')};color:${gAssigned?'#fff':(hasCoords?'var(--ink)':'#92400e')};font-size:10px;font-weight:600;flex-shrink:0">${i+1}</div>
-        <div style="font-size:12px;font-weight:500;color:var(--ink);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name||'—'}</div>
-        ${confirmedTime?`<span style="font-size:10px;font-family:var(--mono);font-weight:600;color:#2E7D32;background:#E8F5E9;padding:1px 6px;border-radius:8px;flex-shrink:0;white-space:nowrap">${fmtTime(confirmedTime)}</span>`:''}
-        ${guidePills}
-        ${noCoordsBadge}
-        <div style="display:flex;flex-direction:column;gap:1px;opacity:0.3;cursor:grab;flex-shrink:0;margin-left:2px">
-          <div style="width:12px;height:1.5px;background:var(--ink);border-radius:1px"></div>
-          <div style="width:12px;height:1.5px;background:var(--ink);border-radius:1px"></div>
-          <div style="width:12px;height:1.5px;background:var(--ink);border-radius:1px"></div>
-        </div>
+    const cardBg=!hasCoords?'#FFFBEB':'var(--surface)';
+    return `<div class="route-stop" data-id="${r.id}" style="padding:5px 7px;border-bottom:0.5px solid var(--border2);cursor:grab;background:${cardBg}">
+      <div style="display:flex;align-items:center;gap:4px">
+        <div style="width:17px;height:17px;border-radius:50%;background:${colColor};color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${globalIdx+1}</div>
+        <div style="font-size:11px;font-weight:500;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)">${r.name||'—'}</div>
+        ${confirmedTime?`<span style="font-size:9px;font-family:var(--mono);font-weight:600;color:#2E7D32;background:#E8F5E9;padding:1px 4px;border-radius:6px;flex-shrink:0">${fmtTime(confirmedTime)}</span>`:''}
+        ${!hasCoords?`<span style="font-size:9px;color:#92400e;background:#FEF3C7;padding:0 3px;border-radius:5px;flex-shrink:0" title="Pincode not mapped">!</span>`:''}
       </div>
-      <!-- Row 2: pin/phone + time pills (single scrollable row) -->
-      <div style="display:flex;align-items:center;gap:4px;margin-top:4px;overflow-x:auto;scrollbar-width:none">
-        <span style="font-size:10px;color:var(--ink3);font-family:var(--mono);flex-shrink:0">${r.pin||'—'}</span>
+      <div style="display:flex;align-items:center;gap:3px;margin-top:3px;overflow-x:auto;scrollbar-width:none">
+        <span style="font-size:9px;color:var(--ink3);font-family:var(--mono);flex-shrink:0">${r.pin||'—'}</span>
         ${pillsHtml}
       </div>
-      ${statusHtml}
     </div>`;
-  }).join('');
+  }
 
-  // Init SortableJS
-  if(routeSortable) routeSortable.destroy();
-  if(typeof Sortable === 'undefined'){ return; }
-  routeSortable=new Sortable(el,{
-    animation:150,
-    ghostClass:'route-drag-ghost',
-    onEnd:function(){
-      const newOrder=[...el.querySelectorAll('.route-stop')].map(el=>parseInt(el.dataset.id));
-      routeOrders[dayNum]=newOrder;
-      renderRouteView();
-      scheduleSave();
-    }
+  const kanbanCols=[
+    {id:'guide-col-1', guide:1,    label:GUIDE_COLORS[1].label, color:GUIDE_COLORS[1].color, bg:GUIDE_COLORS[1].bg,  stops:allStops.filter(r=>routeGuide[r.id]===1)},
+    {id:'guide-col-2', guide:2,    label:GUIDE_COLORS[2].label, color:GUIDE_COLORS[2].color, bg:GUIDE_COLORS[2].bg,  stops:allStops.filter(r=>routeGuide[r.id]===2)},
+    {id:'guide-col-0', guide:null, label:'Unassigned',           color:'#6B7280',             bg:'#F3F4F6',           stops:allStops.filter(r=>!routeGuide[r.id])},
+  ];
+
+  el.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;height:100%;overflow:hidden">${
+    kanbanCols.map((c,ci)=>`
+      <div style="display:flex;flex-direction:column;${ci<2?'border-right:1px solid var(--border);':''}overflow:hidden">
+        <div style="padding:5px 8px;background:${c.bg};border-bottom:2px solid ${c.color};flex-shrink:0;display:flex;align-items:center;gap:5px">
+          <span style="font-size:11px;font-weight:700;color:${c.color};font-family:var(--mono);letter-spacing:0.02em">${c.label}</span>
+          <span style="font-size:9px;background:${c.color};color:#fff;padding:1px 5px;border-radius:8px;font-weight:600">${c.stops.length}</span>
+        </div>
+        <div id="${c.id}" style="flex:1;overflow-y:auto;min-height:0">${c.stops.map(r=>cardHtml(r)).join('')}</div>
+      </div>`
+    ).join('')
+  }</div>`;
+
+  // Init SortableJS — one instance per column, shared group for cross-column drag
+  if(routeSortable){
+    (Array.isArray(routeSortable)?routeSortable:[routeSortable]).forEach(s=>{try{s.destroy();}catch(e){}});
+  }
+  if(typeof Sortable==='undefined'){ return; }
+  routeSortable=kanbanCols.map(c=>{
+    const colEl=document.getElementById(c.id);
+    return new Sortable(colEl,{
+      group:'route-kanban-'+dayNum,
+      animation:150,
+      ghostClass:'route-drag-ghost',
+      onAdd:function(evt){
+        const id=parseInt(evt.item.dataset.id);
+        if(c.guide) routeGuide[id]=c.guide; else delete routeGuide[id];
+        _dirtyRows.add(id);
+        scheduleSave();
+        setTimeout(()=>renderRouteView(),50);
+      }
+    });
   });
-
-  document.getElementById('route-summary').style.display='none';
 }
 
 function drawRouteMap(dayNum){
@@ -1877,7 +1873,7 @@ function renderMultiRouteStops(selectedDays){
   try{
   const el=document.getElementById('route-stops');
   const sumEl=document.getElementById('route-summary');
-  if(routeSortable){ try{routeSortable.destroy();}catch(e){} routeSortable=null; }
+  if(routeSortable){ (Array.isArray(routeSortable)?routeSortable:[routeSortable]).forEach(s=>{try{s.destroy();}catch(e){}}); routeSortable=null; }
 
   let totalStops=0;
 
