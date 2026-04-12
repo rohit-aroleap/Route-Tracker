@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.017</title>
+<title>BLR Tracker · v1.018</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.017</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.018</span></div>
     </div>
 
     <div class="stat-box">
@@ -1744,38 +1744,7 @@ function renderRouteStops(dayNum){
     }
   });
 
-  // Summary
-  const withCoords=stops.filter(r=>PIN_COORDS[r.pin]);
-  let totalDist=0;
-  for(let i=1;i<withCoords.length;i++){
-    const [la1,ln1]=PIN_COORDS[withCoords[i-1].pin];
-    const [la2,ln2]=PIN_COORDS[withCoords[i].pin];
-    totalDist+=haversine(la1,ln1,la2,ln2);
-  }
-  // Compute time span
-  const timed=stops.filter(r=>routeStopTimes[r.id]);
-  let timeSpanHtml='';
-  if(timed.length>=2){
-    const times=timed.map(r=>routeStopTimes[r.id]).sort();
-    timeSpanHtml=`<div><span style="font-weight:500;color:var(--ink)">${fmtTime(times[0])} – ${fmtTime(times[times.length-1])}</span> <span style="color:var(--ink3)">time range</span></div>`;
-  } else if(timed.length===1){
-    timeSpanHtml=`<div><span style="font-weight:500;color:var(--ink)">${fmtTime(routeStopTimes[timed[0].id])}</span> <span style="color:var(--ink3)">first stop</span></div>`;
-  }
-  const sumEl=document.getElementById('route-summary');
-  const noCoords=stops.filter(r=>!PIN_COORDS[r.pin]);
-  const g1stops=stops.filter(r=>routeGuide[r.id]===1);
-  const g2stops=stops.filter(r=>routeGuide[r.id]===2);
-  const unassigned=stops.filter(r=>!routeGuide[r.id]);
-  sumEl.style.display='block';
-  sumEl.innerHTML=`<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-    <div><span style="font-weight:500;color:var(--ink)">${stops.length}</span> <span style="color:var(--ink3)">stops</span></div>
-    ${g1stops.length?`<div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;border-radius:50%;background:${GUIDE_COLORS[1].color}"></div><span style="font-weight:500;color:${GUIDE_COLORS[1].color}">${g1stops.length}</span> <span style="color:var(--ink3)">Guide 1</span></div>`:''}
-    ${g2stops.length?`<div style="display:flex;align-items:center;gap:4px"><div style="width:10px;height:10px;border-radius:50%;background:${GUIDE_COLORS[2].color}"></div><span style="font-weight:500;color:${GUIDE_COLORS[2].color}">${g2stops.length}</span> <span style="color:var(--ink3)">Guide 2</span></div>`:''}
-    ${unassigned.length?`<div style="color:var(--ink3);font-size:12px">${unassigned.length} unassigned</div>`:''}
-    ${noCoords.length?`<div style="color:#92400e;font-size:12px">📍 ${noCoords.length} not mapped</div>`:''}
-    ${withCoords.length>1?`<div><span style="font-weight:500;color:var(--ink)">${totalDist.toFixed(1)} km</span> <span style="color:var(--ink3)">total</span></div>`:''}
-    ${timeSpanHtml}
-  </div>`;
+  document.getElementById('route-summary').style.display='none';
 }
 
 function drawRouteMap(dayNum){
