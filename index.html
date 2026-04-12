@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.011</title>
+<title>BLR Tracker · v1.012</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.011</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.012</span></div>
     </div>
 
     <div class="stat-box">
@@ -393,8 +393,6 @@ tr:hover td{background:rgba(0,0,0,0.015)}
         <!-- Left: ordered stop list -->
         <div style="display:flex;flex-direction:column;gap:10px;height:520px">
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;display:flex;flex-direction:column;flex:1;min-height:0">
-            <!-- Guide tabs -->
-            <div id="route-guide-tabs" style="display:flex;border-bottom:1px solid var(--border);flex-shrink:0"></div>
             <!-- Action buttons row -->
             <div style="padding:6px 10px;border-bottom:1px solid var(--border2);display:flex;gap:6px;flex-shrink:0">
               <button class="btn btn-secondary" style="font-size:11px;padding:3px 9px" onclick="optimiseRoute()">Auto-sort by proximity</button>
@@ -1659,26 +1657,14 @@ function renderRouteStops(dayNum){
   const dp=dayInfo(dayNum);
   const el=document.getElementById('route-stops');
 
-  // Render guide tabs (always, even if no stops)
-  renderRouteGuideTabs(allStops);
-
   if(!allStops.length){
     el.innerHTML='<div style="padding:24px;text-align:center;color:var(--ink3);font-size:13px;font-style:italic">No confirmed installations for this day yet</div>';
     document.getElementById('route-summary').style.display='none';
     return;
   }
 
-  // Filter stops by active guide tab
-  const stops=routeGuideTab==='unassigned' ? allStops.filter(r=>!routeGuide[r.id])
-             : routeGuideTab===1            ? allStops.filter(r=>routeGuide[r.id]===1)
-             : routeGuideTab===2            ? allStops.filter(r=>routeGuide[r.id]===2)
-             : allStops;
-
-  if(!stops.length){
-    const tabName=routeGuideTab==='unassigned'?'Unassigned':(routeGuideTab?GUIDE_COLORS[routeGuideTab].label:'');
-    el.innerHTML=`<div style="padding:24px;text-align:center;color:var(--ink3);font-size:13px;font-style:italic">No stops assigned to ${tabName} yet</div>`;
-    return;
-  }
+  // Order: Murthy (time-sorted) → Divakar (time-sorted) → Unassigned
+  const stops=allStops;
   el.innerHTML=stops.map((r)=>{
     const i=allStops.indexOf(r); // use global index to match map marker numbers
     const coords=PIN_COORDS[r.pin];
