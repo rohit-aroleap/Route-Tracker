@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.016</title>
+<title>BLR Tracker · v1.017</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.016</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.017</span></div>
     </div>
 
     <div class="stat-box">
@@ -779,8 +779,11 @@ function showPage(id){
   if(id==='schedule') renderSchedule();
   if(id==='editdata') renderSheet();
   if(id==='route'){
-    if(!window.routeSelectedDays) window.routeSelectedDays=new Set([todayDayNum()]);
-    if(!window.routeActiveDay) window.routeActiveDay=[...window.routeSelectedDays][0];
+    if(!window.routeActiveDay){
+      try{ const saved=localStorage.getItem('blr_route_day'); if(saved) window.routeActiveDay=parseInt(saved); }catch(e){}
+    }
+    if(!window.routeActiveDay) window.routeActiveDay=todayDayNum();
+    if(!window.routeSelectedDays) window.routeSelectedDays=new Set([window.routeActiveDay]);
     renderRouteDayTabs();
     setTimeout(()=>{
       renderRouteView();
@@ -1611,9 +1614,14 @@ function getSortedRouteStops(dayNum){
 }
 
 // Legacy compat — used by showPage on init
+function saveRouteDay(dayNum){
+  try{ localStorage.setItem('blr_route_day', dayNum); }catch(e){}
+}
+
 function selectRouteDay(dayNum){
   window.routeSelectedDays=new Set([dayNum]);
   window.routeActiveDay=dayNum;
+  saveRouteDay(dayNum);
   renderRouteDayTabs();
   renderRouteView();
 }
@@ -1629,6 +1637,7 @@ function toggleRouteDay(dayNum){
     sel.add(dayNum);
     window.routeActiveDay=dayNum;
   }
+  saveRouteDay(window.routeActiveDay);
   renderRouteDayTabs();
   renderRouteView();
 }
