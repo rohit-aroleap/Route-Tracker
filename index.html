@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.014</title>
+<title>BLR Tracker · v1.015</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.014</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.015</span></div>
     </div>
 
     <div class="stat-box">
@@ -1682,11 +1682,9 @@ function renderRouteStops(dayNum){
       const tip=isConf?'Click to clear':(isAvl?'Click to confirm as final slot':'Click to mark as available');
       return `<button onmousedown="event.stopPropagation()" onclick="setStopTimePill(${r.id},'${p.time}',${dayNum})" title="${tip}" style="font-size:10px;padding:1px 5px;border-radius:10px;border:1px solid ${border};background:${bg};color:${color};font-weight:${fw};cursor:pointer;font-family:var(--mono);transition:all 0.12s;white-space:nowrap;flex-shrink:0">${p.label}</button>`;
     }).join('');
-    // Status line
+    // Status line (only for unconfirmed available slots)
     let statusHtml='';
-    if(confirmedTime){
-      statusHtml=`<div style="margin-top:2px;font-size:10px;color:#2E7D32;font-weight:500;font-family:var(--mono)">✓ ${fmtTime(confirmedTime)}</div>`;
-    } else if(availList.length){
+    if(!confirmedTime && availList.length){
       const labels=availList.map(t=>fmtTime(t)).join(', ');
       statusHtml=`<div style="margin-top:2px;font-size:10px;color:#1A56C4;font-family:var(--mono)">${labels} — confirm one</div>`;
     }
@@ -1705,6 +1703,7 @@ function renderRouteStops(dayNum){
       <div style="display:flex;align-items:center;gap:6px">
         <div style="display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:${gAssigned?GUIDE_COLORS[gAssigned].color:(hasCoords?'var(--surface2)':'#FEF3C7')};color:${gAssigned?'#fff':(hasCoords?'var(--ink)':'#92400e')};font-size:10px;font-weight:600;flex-shrink:0">${i+1}</div>
         <div style="font-size:12px;font-weight:500;color:var(--ink);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name||'—'}</div>
+        ${confirmedTime?`<span style="font-size:10px;font-family:var(--mono);font-weight:600;color:#2E7D32;background:#E8F5E9;padding:1px 6px;border-radius:8px;flex-shrink:0;white-space:nowrap">${fmtTime(confirmedTime)}</span>`:''}
         ${guidePills}
         ${noCoordsBadge}
         <div style="display:flex;flex-direction:column;gap:1px;opacity:0.3;cursor:grab;flex-shrink:0;margin-left:2px">
