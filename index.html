@@ -1094,9 +1094,18 @@ function runSuggest(){
   }
   const [lat,lng]=coords;
 
+  /* Build full list of day descriptors: DAY_PLAN + any extra db days not in DAY_PLAN */
+  const dbDayNums=[...new Set(db.map(r=>r.day).filter(Boolean))];
+  const planDayNums=new Set(DAY_PLAN.map(d=>d.day));
+  const extraDays=dbDayNums.filter(d=>!planDayNums.has(d)).map(d=>{
+    const sample=db.find(r=>r.day===d);
+    return {day:d,date:sample.date||('Day '+d),dateLabel:sample.date||('Day '+d),zone:'Other',
+            label:'Other',color:'#6B7280',bg:'#F3F4F6'};
+  });
+  const allDays=[...DAY_PLAN,...extraDays];
+
   /* Score each day — blend plan-zone proximity with actual db entry proximity */
-  /* Exact pincode match in db → heavily boost that day */
-  const dayScores=DAY_PLAN.map(dp=>{
+  const scoredDays=allDays.map(dp=>{
     // Score against static plan pins
     const planPins=PLAN_COORDS.filter(p=>p.day===dp.day);
     const planDists=planPins.map(p=>haversine(lat,lng,p.lat,p.lng));
@@ -1110,24 +1119,25 @@ function runSuggest(){
     const dbAvg=dbDists.length?dbDists.reduce((a,b)=>a+b,0)/dbDists.length:null;
     const dbMin=dbDists.length?Math.min(...dbDists):null;
 
-    // Exact pincode already in db for this day → big bonus
+    // Exact pincode already in db for this day
     const exactMatch=db.some(r=>r.day===dp.day && r.pin===pin);
 
     // Blend: if db entries exist, weight 60% db + 40% plan; else use plan only
     let blended;
     if(dbAvg!==null){ blended=0.6*dbAvg+0.4*planAvg; }
     else { blended=planAvg; }
-    // Exact match gives a strong pull toward 0 distance
-    if(exactMatch) blended=Math.max(0, blended-15);
 
     const existing=db.filter(r=>r.day===dp.day).length;
-    // nearestDb for display
     const nearestDbEntry=dbMin!==null?dbEntries[dbDists.indexOf(dbMin)]:null;
     return {day:dp.day,date:dp.date,dateLabel:dp.dateLabel,zone:dp.zone,label:dp.label,color:dp.color,bg:dp.bg,
             avg:blended,planAvg,dbAvg,dbMin,minDist:planMin,nearest,existing,exactMatch,nearestDbEntry};
-  }).sort((a,b)=>a.avg-b.avg);
+  });
 
-  const top3=dayScores.slice(0,3);
+  /* Exact-match days always surface first, then fill with proximity order */
+  const exactDays=scoredDays.filter(s=>s.exactMatch).sort((a,b)=>a.avg-b.avg);
+  const otherDays=scoredDays.filter(s=>!s.exactMatch).sort((a,b)=>a.avg-b.avg);
+  const merged=[...exactDays,...otherDays];
+  const top3=merged.slice(0,3);
   const maxDist=Math.max(...top3.map(x=>x.avg));
   lastSuggestedDay=top3[0].day;
   if(usingFallback){
