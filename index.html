@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.006</title>
+<title>BLR Tracker · v1.007</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.006</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.007</span></div>
     </div>
 
     <div class="stat-box">
@@ -1602,6 +1602,21 @@ function getRouteStops(dayNum){
   return routeOrders[dayNum].map(id=>all.find(r=>r.id===id)).filter(Boolean);
 }
 
+/* Returns stops in display order: Murthy (time-sorted) → Divakar (time-sorted) → Unassigned
+   This defines the canonical global numbering used on both cards and map markers */
+function getSortedRouteStops(dayNum){
+  const all=getRouteStops(dayNum);
+  const byTime=(arr)=>[...arr].sort((a,b)=>{
+    const ta=routeStopTimes[a.id]||'99:99';
+    const tb=routeStopTimes[b.id]||'99:99';
+    return ta<tb?-1:ta>tb?1:0;
+  });
+  const murthy =byTime(all.filter(r=>routeGuide[r.id]===1));
+  const divakar=byTime(all.filter(r=>routeGuide[r.id]===2));
+  const unassigned=all.filter(r=>!routeGuide[r.id]);
+  return [...murthy,...divakar,...unassigned];
+}
+
 // Legacy compat — used by showPage on init
 function selectRouteDay(dayNum){
   window.routeSelectedDays=new Set([dayNum]);
@@ -1646,7 +1661,7 @@ function renderRouteView(){
 }
 
 function renderRouteStops(dayNum){
-  const allStops=getRouteStops(dayNum);
+  const allStops=getSortedRouteStops(dayNum); // Murthy (time order) → Divakar (time order) → Unassigned
   const dp=dayInfo(dayNum);
   const el=document.getElementById('route-stops');
 
@@ -1788,6 +1803,9 @@ function drawRouteMap(dayNum){
   routeMarkers=[];
   if(routePolyline){ routeMap.removeLayer(routePolyline); routePolyline=null; }
   if(window._extraPolylines){ window._extraPolylines.forEach(p=>routeMap.removeLayer(p)); window._extraPolylines=[]; }
+
+  // Use globally-sorted stop order (Murthy time-sorted → Divakar time-sorted → Unassigned)
+  const stops=getSortedRouteStops(dayNum);
 
   // Split stops by guide assignment
   const guideGroups={1:[],2:[],0:[]};
