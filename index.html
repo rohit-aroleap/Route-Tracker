@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.013</title>
+<title>BLR Tracker · v1.014</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.013</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.014</span></div>
     </div>
 
     <div class="stat-box">
@@ -1680,46 +1680,42 @@ function renderRouteStops(dayNum){
       else if(isAvl){   bg='#E8F0FD';        border='#2F6EC8';        color='#1A56C4'; }
       else{             bg='transparent';    border='var(--border)';  color='var(--ink3)'; }
       const tip=isConf?'Click to clear':(isAvl?'Click to confirm as final slot':'Click to mark as available');
-      return `<button onmousedown="event.stopPropagation()" onclick="setStopTimePill(${r.id},'${p.time}',${dayNum})" title="${tip}" style="font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid ${border};background:${bg};color:${color};font-weight:${fw};cursor:pointer;font-family:var(--mono);transition:all 0.12s;white-space:nowrap">${p.label}</button>`;
+      return `<button onmousedown="event.stopPropagation()" onclick="setStopTimePill(${r.id},'${p.time}',${dayNum})" title="${tip}" style="font-size:10px;padding:1px 5px;border-radius:10px;border:1px solid ${border};background:${bg};color:${color};font-weight:${fw};cursor:pointer;font-family:var(--mono);transition:all 0.12s;white-space:nowrap;flex-shrink:0">${p.label}</button>`;
     }).join('');
     // Status line
     let statusHtml='';
     if(confirmedTime){
-      statusHtml=`<div style="margin-top:6px;padding-left:32px;font-size:11px;color:#2E7D32;font-weight:500">✓ Confirmed: ${fmtTime(confirmedTime)}</div>`;
+      statusHtml=`<div style="margin-top:2px;font-size:10px;color:#2E7D32;font-weight:500;font-family:var(--mono)">✓ ${fmtTime(confirmedTime)}</div>`;
     } else if(availList.length){
       const labels=availList.map(t=>fmtTime(t)).join(', ');
-      statusHtml=`<div style="margin-top:6px;padding-left:32px;font-size:11px;color:#1A56C4">${availList.length} slot${availList.length>1?'s':''} open: ${labels} — tap highlighted to confirm</div>`;
+      statusHtml=`<div style="margin-top:2px;font-size:10px;color:#1A56C4;font-family:var(--mono)">${labels} — confirm one</div>`;
     }
-    const noCoordsBadge=!hasCoords?`<div style="font-size:10px;font-family:var(--mono);color:#92400e;background:#FEF3C7;border:1px solid #F59E0B44;padding:1px 7px;border-radius:10px;margin-top:3px;display:inline-block">📍 pincode not mapped</div>`:'';
-    const g=guideInfo(r.id);
+    const noCoordsBadge=!hasCoords?`<span style="font-size:9px;font-family:var(--mono);color:#92400e;background:#FEF3C7;border:1px solid #F59E0B44;padding:0 5px;border-radius:8px;flex-shrink:0">no pin</span>`:'';
     const gAssigned=routeGuide[r.id];
     const guidePills=[1,2].map(gn=>{
       const gc=GUIDE_COLORS[gn];
       const active=gAssigned===gn;
       return `<button onmousedown="event.stopPropagation()" onclick="setStopGuide(${r.id},${gn},${dayNum})"
-        style="font-size:11px;padding:2px 10px;border-radius:12px;border:1.5px solid ${gc.color};background:${active?gc.color:'transparent'};color:${active?'#fff':gc.color};font-weight:${active?'600':'400'};cursor:pointer;font-family:var(--mono);transition:all 0.12s">${gc.label}</button>`;
+        style="font-size:10px;padding:1px 7px;border-radius:10px;border:1.5px solid ${gc.color};background:${active?gc.color:'transparent'};color:${active?'#fff':gc.color};font-weight:${active?'600':'400'};cursor:pointer;font-family:var(--mono);transition:all 0.12s;white-space:nowrap;flex-shrink:0">${gc.label}</button>`;
     }).join('');
     const cardBg=!hasCoords?'#FFFBEB':(gAssigned?GUIDE_COLORS[gAssigned].bg+'55':'var(--surface)');
     const borderLeft=!hasCoords?'border-left:3px solid #F59E0B;':(gAssigned?`border-left:3px solid ${GUIDE_COLORS[gAssigned].color};`:'');
-    return `<div class="route-stop" data-id="${r.id}" style="padding:10px 14px;border-bottom:0.5px solid var(--border2);cursor:grab;background:${cardBg};transition:background 0.1s;${borderLeft}">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${gAssigned?GUIDE_COLORS[gAssigned].color:(hasCoords?'var(--surface2)':'#FEF3C7')};color:${gAssigned?'#fff':(hasCoords?'var(--ink)':'#92400e')};font-size:11px;font-weight:600;flex-shrink:0">${i+1}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:500;color:var(--ink)">${r.name||'—'}</div>
-          <div style="font-size:11px;color:var(--ink3);font-family:var(--mono)">${r.pin||'—'}${r.phone?' · '+r.phone:''}</div>
-          ${noCoordsBadge}
-        </div>
-        <div style="display:flex;flex-direction:column;gap:1px;opacity:0.35;cursor:grab;flex-shrink:0">
-          <div style="width:14px;height:1.5px;background:var(--ink);border-radius:1px"></div>
-          <div style="width:14px;height:1.5px;background:var(--ink);border-radius:1px"></div>
-          <div style="width:14px;height:1.5px;background:var(--ink);border-radius:1px"></div>
-        </div>
-      </div>
-      <div style="display:flex;gap:6px;align-items:center;margin-top:6px;padding-left:32px">
+    return `<div class="route-stop" data-id="${r.id}" style="padding:6px 10px;border-bottom:0.5px solid var(--border2);cursor:grab;background:${cardBg};transition:background 0.1s;${borderLeft}">
+      <!-- Row 1: number + name + guide pills + drag -->
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:${gAssigned?GUIDE_COLORS[gAssigned].color:(hasCoords?'var(--surface2)':'#FEF3C7')};color:${gAssigned?'#fff':(hasCoords?'var(--ink)':'#92400e')};font-size:10px;font-weight:600;flex-shrink:0">${i+1}</div>
+        <div style="font-size:12px;font-weight:500;color:var(--ink);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name||'—'}</div>
         ${guidePills}
-        ${!gAssigned?'<span style="font-size:10px;color:var(--ink3);font-family:var(--mono)">assign to guide →</span>':''}
+        ${noCoordsBadge}
+        <div style="display:flex;flex-direction:column;gap:1px;opacity:0.3;cursor:grab;flex-shrink:0;margin-left:2px">
+          <div style="width:12px;height:1.5px;background:var(--ink);border-radius:1px"></div>
+          <div style="width:12px;height:1.5px;background:var(--ink);border-radius:1px"></div>
+          <div style="width:12px;height:1.5px;background:var(--ink);border-radius:1px"></div>
+        </div>
       </div>
-      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;padding-left:32px">
+      <!-- Row 2: pin/phone + time pills (single scrollable row) -->
+      <div style="display:flex;align-items:center;gap:4px;margin-top:4px;overflow-x:auto;scrollbar-width:none">
+        <span style="font-size:10px;color:var(--ink3);font-family:var(--mono);flex-shrink:0">${r.pin||'—'}</span>
         ${pillsHtml}
       </div>
       ${statusHtml}
