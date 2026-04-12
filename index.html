@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.002</title>
+<title>BLR Tracker · v1.003</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.002</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.003</span></div>
     </div>
 
     <div class="stat-box">
@@ -452,56 +452,113 @@ const FIREBASE_CONFIG = {
   appId:             "1:1037635127527:web:a56c96436da69244097a42",
   measurementId:     "G-5LXTMV8YTM"
 };
-const FB_PATH = 'blr_tracker/data';
+const FB_PATH    = 'blr_tracker/v2';   // new per-row path
+const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-let _fbRef = null, _isFirebaseReady = false, _lastSavedAt = null;
+let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
+let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 
 function initFirebase(){
   if(typeof firebase === 'undefined'){ setSyncStatus('offline'); return; }
   try{
     firebase.initializeApp(FIREBASE_CONFIG);
-    _fbRef = firebase.database().ref(FB_PATH);
+    const db2 = firebase.database();
+    _fbRef = db2.ref(FB_PATH);
     _isFirebaseReady = true;
     setSyncStatus('connecting');
 
-    // Real-time listener — fires when any other user saves
-    _fbRef.on('value', snap => {
-      const remote = snap.val();
-      if(!remote || !Array.isArray(remote.db)){ setSyncStatus('online'); return; }
-      // Skip our own write echoing back
-      if(remote.savedAt && remote.savedAt === _lastSavedAt){ setSyncStatus('online'); return; }
-      // Apply only if remote data is newer than what we have locally
-      const remoteMs = remote.savedAt ? new Date(remote.savedAt).getTime() : 0;
-      const localMs  = _lastSavedAt   ? new Date(_lastSavedAt).getTime()   : 0;
-      if(remoteMs > localMs){
-        db.length=0; remote.db.forEach(r=>db.push(r));
-        nextId = remote.nextId || db.length+1;
-        if(remote.sheetOrders)        Object.assign(sheetOrders,       remote.sheetOrders);
-        if(remote.routeOrders)        Object.assign(routeOrders,       remote.routeOrders);
-        if(remote.routeStopTimes)     Object.assign(routeStopTimes,    remote.routeStopTimes);
-        if(remote.routeTimeConfirmed) Object.assign(routeTimeConfirmed,remote.routeTimeConfirmed);
-        if(remote.routeAvailSlots)    Object.assign(routeAvailSlots,   remote.routeAvailSlots);
-        _lastSavedAt = remote.savedAt;
-        try{ localStorage.setItem(STORAGE_KEY,JSON.stringify(remote)); }catch(e){}
-        updateStats(); renderLog();
-        toast('Synced from cloud ☁');
-      }
-      setSyncStatus('online');
-    }, err => { console.warn('Firebase listener error',err); setSyncStatus('offline'); });
+    // ── Per-row listeners ──────────────────────────────────────────────────
+    const rowsRef = _fbRef.child('rows');
 
-    // Monitor connection state for live indicator
-    firebase.database().ref('.info/connected').on('value', snap => {
+    rowsRef.on('child_added', snap => {
+      const r = snap.val(); if(!r || !r.id) return;
+      if(_ignoreRowIds.has(r.id)){ _ignoreRowIds.delete(r.id); return; }
+      if(!db.find(x=>x.id===r.id)){ db.push(r); updateStats(); renderLog(); setSyncStatus('online'); }
+    });
+
+    rowsRef.on('child_changed', snap => {
+      const r = snap.val(); if(!r || !r.id) return;
+      if(_ignoreRowIds.has(r.id)){ _ignoreRowIds.delete(r.id); return; }
+      const idx = db.findIndex(x=>x.id===r.id);
+      if(idx>=0){ db[idx]=r; updateStats(); renderLog(); setSyncStatus('online'); toast('Synced update ☁'); }
+    });
+
+    rowsRef.on('child_removed', snap => {
+      const r = snap.val(); if(!r || !r.id) return;
+      if(_ignoreRowIds.has(r.id)){ _ignoreRowIds.delete(r.id); return; }
+      db = db.filter(x=>x.id!==r.id);
+      updateStats(); renderLog(); setSyncStatus('online'); toast('Synced delete ☁');
+    });
+
+    // ── Meta listener (orders, times) ──────────────────────────────────────
+    _fbRef.child('meta').on('value', snap => {
+      const m = snap.val(); if(!m) return;
+      if(m._writtenBy === _clientId) return; // skip own meta echo
+      if(m.nextId)            nextId = m.nextId;
+      if(m.sheetOrders)       Object.assign(sheetOrders,       m.sheetOrders);
+      if(m.routeOrders)       Object.assign(routeOrders,       m.routeOrders);
+      if(m.routeStopTimes)    Object.assign(routeStopTimes,    m.routeStopTimes);
+      if(m.routeTimeConfirmed)Object.assign(routeTimeConfirmed,m.routeTimeConfirmed);
+      if(m.routeAvailSlots)   Object.assign(routeAvailSlots,   m.routeAvailSlots);
+      setSyncStatus('online');
+    });
+
+    // ── Connection indicator ───────────────────────────────────────────────
+    db2.ref('.info/connected').on('value', snap => {
       setSyncStatus(snap.val() ? 'online' : 'offline');
     });
+
+    // ── Migration: if v2/rows is empty but v1 blob exists, import it ───────
+    rowsRef.once('value').then(snap => {
+      if(snap.exists()) return; // v2 already has data
+      return db2.ref(FB_PATH_V1).once('value').then(oldSnap => {
+        const old = oldSnap.val();
+        if(old && Array.isArray(old.db)){
+          toast('Migrating to per-row sync…');
+          const writes = {};
+          old.db.forEach(r=>{ writes[String(r.id)]=r; });
+          return rowsRef.set(writes).then(()=>_fbRef.child('meta').set({
+            nextId: old.nextId||old.db.length+1,
+            sheetOrders: old.sheetOrders||{},
+            routeOrders: old.routeOrders||{},
+            routeStopTimes: old.routeStopTimes||{},
+            routeTimeConfirmed: old.routeTimeConfirmed||{},
+            routeAvailSlots: old.routeAvailSlots||{},
+            _writtenBy: _clientId
+          })).then(()=>toast('Migration done ✓'));
+        }
+      });
+    }).catch(e=>console.warn('Migration check failed',e));
+
   }catch(e){
     console.warn('Firebase init failed — running offline only',e);
     setSyncStatus('offline');
   }
 }
 
-function pushToFirebase(payload){
+// Unique client ID to skip own echoes
+const _clientId = Math.random().toString(36).slice(2);
+
+function pushRowToFirebase(row){
   if(!_isFirebaseReady || !_fbRef) return;
-  _fbRef.set(payload).catch(e=>console.warn('Firebase write error',e));
+  _ignoreRowIds.add(row.id);
+  _fbRef.child('rows').child(String(row.id)).set(row)
+    .catch(e=>console.warn('Firebase row write error',e));
+}
+
+function deleteRowFromFirebase(id){
+  if(!_isFirebaseReady || !_fbRef) return;
+  _ignoreRowIds.add(id);
+  _fbRef.child('rows').child(String(id)).remove()
+    .catch(e=>console.warn('Firebase row delete error',e));
+}
+
+function pushMetaToFirebase(){
+  if(!_isFirebaseReady || !_fbRef) return;
+  _fbRef.child('meta').set({
+    nextId, sheetOrders, routeOrders, routeStopTimes, routeTimeConfirmed, routeAvailSlots,
+    _writtenBy: _clientId
+  }).catch(e=>console.warn('Firebase meta write error',e));
 }
 
 function setSyncStatus(state){
@@ -990,7 +1047,9 @@ function renderLog(){
 
 function deleteRow(id){
   db=db.filter(r=>r.id!==id);
-  renderLog();updateStats();toast('Entry removed');
+  deleteRowFromFirebase(id);  // immediately remove from Firebase
+  _dirtyRows.delete(id);      // no need to push a deleted row
+  renderLog();updateStats();scheduleSave();toast('Entry removed');
 }
 
 /* ─── ADD INSTALLATION ─── */
@@ -1046,7 +1105,8 @@ function addInstallation(){
   const entry={id:nextId++,name,phone,area,pin,
     date:dateDisplay,day:dayNum,status,zone,notes};
   db.unshift(entry);
-  updateStats();clearForm();toast('Added: '+(name||phone));
+  _dirtyRows.add(entry.id);
+  updateStats();clearForm();scheduleSave();toast('Added: '+(name||phone));
   showPage('log');
 }
 
@@ -1850,6 +1910,7 @@ function moveStopToDay(entryId,targetDay){
   const fromDay=entry.day;
   entry.day=targetDay;
   entry.date=dp.date;
+  _dirtyRows.add(entryId);
   // Update order lists
   if(routeOrders[fromDay]) routeOrders[fromDay]=routeOrders[fromDay].filter(id=>id!==entryId);
   if(!routeOrders[targetDay]) routeOrders[targetDay]=[];
@@ -1866,14 +1927,23 @@ const STORAGE_KEY='blr_install_tracker_v1';
 
 function saveToStorage(){
   try{
-    const now=new Date().toISOString();
-    _lastSavedAt=now;
+    // localStorage: always save full snapshot for offline use
     const payload={
       db,nextId,sheetOrders,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,
-      savedAt:now
+      savedAt:new Date().toISOString()
     };
     localStorage.setItem(STORAGE_KEY,JSON.stringify(payload));
-    pushToFirebase(payload);
+
+    // Firebase: push only dirty rows + meta
+    if(_dirtyRows.size){
+      _dirtyRows.forEach(id=>{
+        const row=db.find(r=>r.id===id);
+        if(row) pushRowToFirebase(row);
+        // if row not found it was deleted — handled by deleteRow directly
+      });
+      _dirtyRows.clear();
+    }
+    pushMetaToFirebase();
     showSaveIndicator();
   }catch(e){ console.warn('localStorage save failed',e); }
 }
@@ -2088,6 +2158,7 @@ function updateEntry(id,field,value){
   if(field==='day') row.day=value?parseInt(value)||null:null;
   else row[field]=value;
   if(field==='pin') row.zone=zoneName(value)||row.zone||'';
+  _dirtyRows.add(id);  // mark only this row dirty
   updateStats();
   scheduleSave();
 }
@@ -2099,7 +2170,9 @@ function addSheetRow(calDate){
     day:planDay?planDay.day:null,
     status:'confirmed',zone:'',notes:''};
   db.push(entry);
+  _dirtyRows.add(entry.id);
   updateStats();
+  scheduleSave();
   renderSheet();
   setTimeout(()=>{
     const rows=document.querySelectorAll('#sheet-table tr[data-id]');
