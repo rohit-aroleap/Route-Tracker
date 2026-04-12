@@ -362,6 +362,13 @@ tr:hover td{background:rgba(0,0,0,0.015)}
         <div class="btn-row" style="margin-top:14px">
           <button class="btn btn-primary" id="sug-add-btn" onclick="addFromSuggest()" style="display:none">Add to Day 1 →</button>
         </div>
+        <!-- Cluster map -->
+        <div style="margin-top:20px">
+          <div class="card-title" style="margin-bottom:8px">Installation Clusters Map</div>
+          <div style="font-size:12px;color:var(--ink3);margin-bottom:10px">All scheduled installations by day · <span style="color:var(--accent);font-weight:600">★ = searched pincode</span></div>
+          <div id="sug-map" style="height:440px;border-radius:var(--r2);border:1px solid var(--border);overflow:hidden"></div>
+          <div id="sug-map-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
+        </div>
       </div>
     </div>
 
@@ -1180,6 +1187,93 @@ function runSuggest(){
   const addBtn=document.getElementById('sug-add-btn');
   addBtn.style.display='inline-block';
   addBtn.textContent=`Add ${pin} to ${top3[0].date} →`;
+
+  // Draw cluster map
+  drawSugMap(lat, lng, pin);
+}
+
+function drawSugMap(searchLat, searchLng, searchPin){
+  // Init map once
+  if(!sugMap){
+    sugMap=L.map('sug-map',{zoomControl:true}).setView([12.97,77.59],11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      attribution:'© OpenStreetMap',maxZoom:18
+    }).addTo(sugMap);
+  }
+  // Clear old markers
+  sugMapMarkers.forEach(m=>sugMap.removeLayer(m));
+  sugMapMarkers=[];
+
+  // Build calendar-date → dp map for colors
+  const calDpMap={};
+  DAY_PLAN.forEach(dp=>{ calDpMap[parseInt(dp.date)]=dp; });
+  const DOW2=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  db.forEach(r=>{
+    const cd=getEntryCalDate(r);
+    if(cd && !calDpMap[cd]){
+      calDpMap[cd]={date:cd+' Apr',dateLabel:DOW2[new Date(2025,3,cd).getDay()]+', '+cd+' Apr',color:'#6B7280',bg:'#F3F4F6'};
+    }
+  });
+
+  // Plot all db entries as small colored circles
+  const allPoints=[];
+  db.forEach(r=>{
+    const coords=PIN_COORDS[r.pin]; if(!coords) return;
+    const [lat,lng]=coords;
+    const cd=getEntryCalDate(r);
+    const dp=calDpMap[cd]||{date:'?',color:'#9CA3AF'};
+    allPoints.push([lat,lng]);
+    const icon=L.divIcon({
+      html:`<div style="width:14px;height:14px;border-radius:50%;background:${dp.color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>`,
+      iconSize:[14,14],iconAnchor:[7,7],className:''
+    });
+    const mk=L.marker([lat,lng],{icon}).addTo(sugMap)
+      .bindPopup(`<div style="font-family:sans-serif;min-width:130px">
+        <div style="font-size:10px;font-weight:700;color:${dp.color};margin-bottom:3px">${dp.date}</div>
+        <div style="font-weight:600;font-size:13px">${r.name||'—'}</div>
+        <div style="font-size:11px;color:#666">${r.area||''}</div>
+        <div style="font-size:11px;font-family:monospace;color:#444;margin-top:2px">${r.pin||''}</div>
+      </div>`);
+    sugMapMarkers.push(mk);
+  });
+
+  // Plot the searched pincode as a star marker
+  const starIcon=L.divIcon({
+    html:`<div style="width:36px;height:36px;border-radius:50%;background:#fff;border:3px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 10px rgba(200,75,47,0.5)">★</div>`,
+    iconSize:[36,36],iconAnchor:[18,18],className:''
+  });
+  const starMk=L.marker([searchLat,searchLng],{icon:starIcon,zIndexOffset:1000})
+    .addTo(sugMap)
+    .bindPopup(`<div style="font-family:sans-serif"><div style="font-weight:700;color:var(--accent)">Searched: ${searchPin}</div><div style="font-size:11px;color:#666;margin-top:2px">New installation</div></div>`)
+    .openPopup();
+  sugMapMarkers.push(starMk);
+  allPoints.push([searchLat,searchLng]);
+
+  // Fit bounds
+  if(allPoints.length>0){
+    sugMap.fitBounds(allPoints.length===1?L.latLngBounds([allPoints[0],allPoints[0]]).pad(0.5):L.latLngBounds(allPoints).pad(0.1));
+  }
+  setTimeout(()=>sugMap.invalidateSize(),150);
+
+  // Build legend
+  const seen=new Set();
+  const legendItems=[];
+  db.forEach(r=>{
+    const cd=getEntryCalDate(r);
+    if(cd && !seen.has(cd)){
+      seen.add(cd);
+      const dp=calDpMap[cd];
+      if(dp) legendItems.push({cd,dp});
+    }
+  });
+  legendItems.sort((a,b)=>a.cd-b.cd);
+  document.getElementById('sug-map-legend').innerHTML=
+    legendItems.map(({dp})=>`<div style="display:flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);background:${dp.bg||'#eee'};padding:3px 8px;border-radius:12px">
+      <div style="width:10px;height:10px;border-radius:50%;background:${dp.color}"></div>${dp.date}
+    </div>`).join('')+
+    `<div style="display:flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);background:#FFF0EE;padding:3px 8px;border-radius:12px">
+      <span style="color:var(--accent);font-size:13px">★</span> ${searchPin} (new)
+    </div>`;
 }
 
 function addFromSuggest(){
@@ -1195,6 +1289,7 @@ function addFromSuggest(){
 /* ─── ROUTE PLANNER ─── */
 let sheetOrders={}; // calDay -> [ordered entry ids] — persists manual row order in Edit Data
 let routeMap=null, routeMarkers=[], routePolyline=null, routeSortable=null;
+let sugMap=null, sugMapMarkers=[];
 let routeOrders={}; // dayNum -> [ordered list of entries]
 let routeStopTimes={}; // entryId -> "HH:MM"
 let routeTimeConfirmed={}; // entryId -> bool
