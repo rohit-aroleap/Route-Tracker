@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.001</title>
+<title>BLR Tracker · v1.002</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.001</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.002</span></div>
     </div>
 
     <div class="stat-box">
@@ -1541,12 +1541,14 @@ function renderRouteStops(dayNum){
       const labels=availList.map(t=>fmtTime(t)).join(', ');
       statusHtml=`<div style="margin-top:6px;padding-left:32px;font-size:11px;color:#1A56C4">${availList.length} slot${availList.length>1?'s':''} open: ${labels} — tap highlighted to confirm</div>`;
     }
-    return `<div class="route-stop" data-id="${r.id}" style="padding:10px 14px;border-bottom:0.5px solid var(--border2);cursor:grab;background:var(--surface);transition:background 0.1s" onmouseenter="this.style.background='var(--bg)'" onmouseleave="this.style.background='var(--surface)'">
+    const noCoordsBadge=!hasCoords?`<div style="font-size:10px;font-family:var(--mono);color:#92400e;background:#FEF3C7;border:1px solid #F59E0B44;padding:1px 7px;border-radius:10px;margin-top:3px;display:inline-block">📍 pincode not mapped</div>`:'';
+    return `<div class="route-stop" data-id="${r.id}" style="padding:10px 14px;border-bottom:0.5px solid var(--border2);cursor:grab;background:${hasCoords?'var(--surface)':'#FFFBEB'};transition:background 0.1s;${hasCoords?'':'border-left:3px solid #F59E0B;'}" onmouseenter="this.style.background='var(--bg)'" onmouseleave="this.style.background='${hasCoords?'var(--surface)':'#FFFBEB'}'">
       <div style="display:flex;align-items:center;gap:10px">
-        <div style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--surface2);color:var(--ink);font-size:11px;font-weight:600;flex-shrink:0">${i+1}</div>
+        <div style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${hasCoords?'var(--surface2)':'#FEF3C7'};color:${hasCoords?'var(--ink)':'#92400e'};font-size:11px;font-weight:600;flex-shrink:0">${i+1}</div>
         <div style="flex:1;min-width:0">
           <div style="font-size:13px;font-weight:500;color:var(--ink)">${r.name||'—'}</div>
-          <div style="font-size:11px;color:var(--ink3);font-family:var(--mono)">${r.pin||''}${r.phone?' · '+r.phone:''}</div>
+          <div style="font-size:11px;color:var(--ink3);font-family:var(--mono)">${r.pin||'—'}${r.phone?' · '+r.phone:''}</div>
+          ${noCoordsBadge}
         </div>
         <div style="display:flex;flex-direction:column;gap:1px;opacity:0.35;cursor:grab;flex-shrink:0">
           <div style="width:14px;height:1.5px;background:var(--ink);border-radius:1px"></div>
@@ -1593,10 +1595,12 @@ function renderRouteStops(dayNum){
     timeSpanHtml=`<div><span style="font-weight:500;color:var(--ink)">${fmtTime(routeStopTimes[timed[0].id])}</span> <span style="color:var(--ink3)">first stop</span></div>`;
   }
   const sumEl=document.getElementById('route-summary');
+  const noCoords=stops.filter(r=>!PIN_COORDS[r.pin]);
   sumEl.style.display='block';
-  sumEl.innerHTML=`<div style="display:flex;gap:16px;flex-wrap:wrap">
+  sumEl.innerHTML=`<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
     <div><span style="font-weight:500;color:var(--ink)">${stops.length}</span> <span style="color:var(--ink3)">stops</span></div>
     <div><span style="font-weight:500;color:var(--ink)">${withCoords.length}</span> <span style="color:var(--ink3)">mapped</span></div>
+    ${noCoords.length?`<div style="color:#92400e;font-size:12px">📍 ${noCoords.length} pincode${noCoords.length>1?'s':''} not found</div>`:''}
     ${withCoords.length>1?`<div><span style="font-weight:500;color:var(--ink)">${totalDist.toFixed(1)} km</span> <span style="color:var(--ink3)">total distance</span></div>`:''}
     ${timeSpanHtml}
   </div>`;
@@ -1646,6 +1650,25 @@ function drawRouteMap(dayNum){
   if(points.length>0){
     routeMap.fitBounds(points.length===1?L.latLngBounds([points[0],points[0]]).pad(0.5):L.latLngBounds(points).pad(0.12));
   }
+
+  // Unmapped overlay
+  const noCoordStops=stops.filter(r=>!PIN_COORDS[r.pin]);
+  let overlayEl=document.getElementById('route-map-unmapped');
+  if(!overlayEl){
+    overlayEl=document.createElement('div');
+    overlayEl.id='route-map-unmapped';
+    overlayEl.style.cssText='position:absolute;bottom:36px;left:10px;z-index:800;background:rgba(255,251,235,0.95);border:1.5px solid #F59E0B;border-radius:8px;padding:8px 11px;max-width:200px;font-family:sans-serif;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,0.15);pointer-events:none';
+    document.getElementById('route-map').style.position='relative';
+    document.getElementById('route-map').appendChild(overlayEl);
+  }
+  if(noCoordStops.length){
+    overlayEl.style.display='block';
+    overlayEl.innerHTML=`<div style="font-weight:700;color:#92400e;margin-bottom:4px;font-size:11px">📍 Not on map</div>`+
+      noCoordStops.map(r=>`<div style="color:#78350f;margin-top:2px">${r.name||'?'} <span style="font-family:monospace;color:#b45309">${r.pin||'no pin'}</span></div>`).join('');
+  } else {
+    overlayEl.style.display='none';
+  }
+
   setTimeout(()=>routeMap.invalidateSize(),100);
 }
 
