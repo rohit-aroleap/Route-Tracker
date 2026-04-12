@@ -637,6 +637,17 @@ function haversine(lat1,lng1,lat2,lng2){
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 function dayInfo(d){return DAY_PLAN.find(x=>x.day==d)||{label:"New/Other",color:"#888",bg:"#eee"}}
+
+/* Today's calendar day-of-month (April) */
+function todayCalDay(){ return new Date().getDate(); }
+/* Best DAY_PLAN day to default to: today if it exists, else nearest future, else last */
+function todayDayNum(){
+  const t=todayCalDay();
+  // Find DAY_PLAN entry whose date matches today or is the next upcoming
+  const future=DAY_PLAN.filter(dp=>parseInt(dp.date)>=t);
+  if(future.length) return future[0].day;
+  return DAY_PLAN[DAY_PLAN.length-1].day; // all past → last day
+}
 function zoneClass(z){return 'zb-'+(z||'').toLowerCase().replace(/[^a-z]/g,'');}
 function zoneName(pin){
   const p=PLAN_COORDS.find(x=>x.pin===pin);return p?p.zone:'—';
@@ -691,7 +702,7 @@ function showPage(id){
   if(id==='schedule') renderSchedule();
   if(id==='editdata') renderSheet();
   if(id==='route'){
-    if(!window.routeSelectedDays) window.routeSelectedDays=new Set([DAY_PLAN[0].day]);
+    if(!window.routeSelectedDays) window.routeSelectedDays=new Set([todayDayNum()]);
     if(!window.routeActiveDay) window.routeActiveDay=[...window.routeSelectedDays][0];
     renderRouteDayTabs();
     setTimeout(()=>{
@@ -1123,7 +1134,10 @@ function runSuggest(){
     const dow=DOW[new Date(2025,3,d).getDay()];
     planCalMap[d]={day:null,date:d+' Apr',dateLabel:`${dow}, ${d} April`,zone:'Other',label:'Other',color:'#6B7280',bg:'#F3F4F6'};
   });
-  const allDpList=Object.values(planCalMap).sort((a,b)=>parseInt(a.date)-parseInt(b.date));
+  const tDay=todayCalDay();
+  const allDpList=Object.values(planCalMap)
+    .filter(dp=>parseInt(dp.date)>=tDay)   // only today + future
+    .sort((a,b)=>parseInt(a.date)-parseInt(b.date));
 
   /* Score each calendar date */
   const scoredDays=allDpList.map(dp=>{
@@ -1230,10 +1244,12 @@ function initSugMapView(){
   const calDpMap=buildCalDpMap();
   const allPoints=[];
 
+  const today=todayCalDay();
   db.forEach(r=>{
     const coords=PIN_COORDS[r.pin]; if(!coords) return;
-    const [lat,lng]=coords;
     const cd=getEntryCalDate(r);
+    if(cd!==null && cd<today) return; // skip past dates
+    const [lat,lng]=coords;
     const dp=calDpMap[cd]||{date:'?',color:'#9CA3AF',bg:'#F3F4F6'};
     allPoints.push([lat,lng]);
     const icon=L.divIcon({
@@ -1258,7 +1274,8 @@ function initSugMapView(){
   // Legend
   const calDpMap2=buildCalDpMap();
   const seen=new Set(); const legendItems=[];
-  db.forEach(r=>{ const cd=getEntryCalDate(r); if(cd&&!seen.has(cd)){seen.add(cd);const dp=calDpMap2[cd];if(dp)legendItems.push({cd,dp});} });
+  const tod=todayCalDay();
+  db.forEach(r=>{ const cd=getEntryCalDate(r); if(cd&&cd>=tod&&!seen.has(cd)){seen.add(cd);const dp=calDpMap2[cd];if(dp)legendItems.push({cd,dp});} });
   legendItems.sort((a,b)=>a.cd-b.cd);
   document.getElementById('sug-map-legend').innerHTML=legendItems.map(({dp})=>`
     <div style="display:flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);background:${dp.bg||'#eee'};padding:3px 8px;border-radius:12px">
@@ -1405,7 +1422,7 @@ function initRouteMap(){
 function renderRouteDayTabs(){
   const tabs=document.getElementById('route-day-tabs');
   if(!tabs) return;
-  if(!window.routeSelectedDays) window.routeSelectedDays=new Set([DAY_PLAN[0].day]);
+  if(!window.routeSelectedDays) window.routeSelectedDays=new Set([todayDayNum()]);
   const sel=window.routeSelectedDays;
   const isMulti=sel.size>1;
   const pillsHtml=DAY_PLAN.map(dp=>{
@@ -1454,7 +1471,7 @@ function toggleRouteDay(dayNum){
 }
 
 function clearMultiDay(){
-  const day=window.routeActiveDay||[...(window.routeSelectedDays||new Set())][0]||DAY_PLAN[0].day;
+  const day=window.routeActiveDay||[...(window.routeSelectedDays||new Set())][0]||todayDayNum();
   window.routeSelectedDays=new Set([day]);
   renderRouteDayTabs();
   renderRouteView();
@@ -1464,7 +1481,7 @@ function clearMultiDay(){
 function renderRouteView(){
   const sel=[...(window.routeSelectedDays||new Set())].sort((a,b)=>a-b);
   if(sel.length<=1){
-    const day=sel[0]||DAY_PLAN[0].day;
+    const day=sel[0]||todayDayNum();
     renderRouteStops(day);
     drawRouteMap(day);
   } else {
