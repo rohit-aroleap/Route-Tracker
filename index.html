@@ -1161,7 +1161,14 @@ function runSuggest(){
       <div class="sug-day" style="color:${s.color}">${s.date}</div>
       <div class="sug-meta">${s.dateLabel} · ${s.zone}</div>
       <div style="font-size:11px;color:var(--ink3);margin-bottom:4px">${s.existing} install${s.existing!==1?'s':''} so far</div>
-      <div class="dist-bar-bg"><div class="dist-bar" style="width:${Math.max(4,Math.round((1-(s.avg/(Math.max(...top3.map(x=>x.avg))||1)))*100))}%;background:${s.color}"></div></div>
+      <div style="font-size:10px;color:var(--ink3);font-family:var(--mono);margin-bottom:3px">proximity score — longer = closer</div>
+      <div class="dist-bar-bg">${(()=>{
+        // Use displayed distance (dbAvg if available, else planAvg) for bar width
+        const dispDist=s.dbAvg!==null?s.dbAvg:s.planAvg;
+        const maxDisp=Math.max(...top3.map(x=>x.dbAvg!==null?x.dbAvg:x.planAvg))||1;
+        const w=s.exactMatch&&dispDist===0?100:Math.max(4,Math.round((1-dispDist/maxDisp)*100));
+        return `<div class="dist-bar" style="width:${w}%;background:${s.color}"></div>`;
+      })()}</div>
       <div class="sug-reason">
         ${s.dbAvg!==null?`Avg to existing installs: <strong>${s.dbAvg.toFixed(1)} km</strong><br>`:''}
         ${s.nearestDbEntry?`Nearest customer: <span style="font-family:var(--mono);font-size:11px">${s.nearestDbEntry.pin}</span> ${s.nearestDbEntry.area||''} (${s.dbMin.toFixed(1)} km)<br>`:''}
