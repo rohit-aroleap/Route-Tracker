@@ -107,15 +107,13 @@ tr:hover td{background:rgba(0,0,0,0.015)}
 .delete-btn:hover{background:#fee;color:var(--accent)}
 
 /* ── Day suggestion result ── */
-.sug-result{display:none;margin-top:16px}
-.sug-card{border-radius:var(--r2);padding:18px 20px;border:1.5px solid var(--border)}
+.sug-card{border-radius:var(--r2);padding:14px 16px;border:1.5px solid var(--border);background:var(--surface)}
 .sug-card.best{border-color:var(--accent);background:rgba(200,75,47,0.04)}
-.sug-rank{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:var(--ink2);margin-bottom:4px}
-.sug-day{font-family:var(--serif);font-size:22px;font-weight:600;color:var(--accent);margin-bottom:2px}
-.sug-meta{font-size:12px;color:var(--ink2);margin-bottom:8px}
-.sug-reason{font-size:12px;color:var(--ink2);line-height:1.6;border-top:1px solid var(--border2);padding-top:8px;margin-top:8px}
-.sug-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:0}
-.dist-bar-bg{height:4px;background:var(--surface2);border-radius:2px;margin-top:6px}
+.sug-rank{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:var(--ink2);margin-bottom:2px}
+.sug-day{font-family:var(--serif);font-size:20px;font-weight:600;color:var(--accent);margin-bottom:1px}
+.sug-meta{font-size:11px;color:var(--ink2);margin-bottom:6px}
+.sug-reason{font-size:11px;color:var(--ink2);line-height:1.6;border-top:1px solid var(--border2);padding-top:7px;margin-top:7px}
+.dist-bar-bg{height:4px;background:var(--surface2);border-radius:2px;margin-top:4px}
 .dist-bar{height:4px;border-radius:2px;background:var(--accent);transition:width 0.4s}
 
 /* ── Day schedule view ── */
@@ -338,37 +336,46 @@ tr:hover td{background:rgba(0,0,0,0.015)}
     <!-- Suggest Page -->
     <div class="page" id="page-suggest">
       <div class="page-title">Pincode Day Suggester</div>
-      <div class="page-sub">Enter any Bangalore pincode — get the top 3 best installation days based on proximity</div>
+      <div class="page-sub">Enter any Bangalore pincode — see where it falls on the map and get the best day suggestions</div>
 
-      <div class="card">
-        <div class="card-title">Enter pincode</div>
-        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-          <div class="form-group" style="flex:0 0 200px">
-            <label>Pincode</label>
-            <input type="text" id="sug-pin" maxlength="6" placeholder="e.g. 560034" style="font-family:var(--mono);font-size:16px;letter-spacing:0.08em"/>
-          </div>
-          <div class="form-group" style="flex:0 0 180px">
-            <label>Area name (optional)</label>
-            <input type="text" id="sug-area" placeholder="e.g. Koramangala"/>
-          </div>
-          <button class="btn btn-primary" onclick="runSuggest()" style="margin-bottom:1px">Get suggestions</button>
-        </div>
-        <div id="sug-existing" style="margin-top:10px;font-size:12px;font-family:var(--mono);color:var(--accent)"></div>
-      </div>
+      <!-- Two-column layout: left = input+results, right = always-on map -->
+      <div style="display:grid;grid-template-columns:380px 1fr;gap:16px;align-items:start">
 
-      <div class="sug-result" id="sug-result">
-        <div class="card-title" style="margin-bottom:10px">Top 3 Suggested Days</div>
-        <div class="sug-grid" id="sug-grid"></div>
-        <div class="btn-row" style="margin-top:14px">
-          <button class="btn btn-primary" id="sug-add-btn" onclick="addFromSuggest()" style="display:none">Add to Day 1 →</button>
+        <!-- Left column -->
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="card" style="margin:0">
+            <div class="card-title">Search pincode</div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div class="form-group" style="margin:0">
+                <label>Pincode</label>
+                <input type="text" id="sug-pin" maxlength="6" placeholder="e.g. 560034" style="font-family:var(--mono);font-size:16px;letter-spacing:0.08em" oninput="sugLivePin(this.value)"/>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label>Area name (optional)</label>
+                <input type="text" id="sug-area" placeholder="e.g. Koramangala"/>
+              </div>
+              <button class="btn btn-primary" onclick="runSuggest()">Get suggestions</button>
+            </div>
+            <div id="sug-existing" style="margin-top:10px;font-size:12px;font-family:var(--mono);color:var(--accent)"></div>
+          </div>
+
+          <div id="sug-result" class="sug-result" style="display:none;flex-direction:column;gap:12px">
+            <div class="card-title">Top 3 Suggested Days</div>
+            <div id="sug-grid" style="display:flex;flex-direction:column;gap:10px"></div>
+            <button class="btn btn-primary" id="sug-add-btn" onclick="addFromSuggest()" style="display:none">Add to Day 1 →</button>
+          </div>
         </div>
-        <!-- Cluster map -->
-        <div style="margin-top:20px">
-          <div class="card-title" style="margin-bottom:8px">Installation Clusters Map</div>
-          <div style="font-size:12px;color:var(--ink3);margin-bottom:10px">All scheduled installations by day · <span style="color:var(--accent);font-weight:600">★ = searched pincode</span></div>
-          <div id="sug-map" style="height:440px;border-radius:var(--r2);border:1px solid var(--border);overflow:hidden"></div>
-          <div id="sug-map-legend" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
+
+        <!-- Right column: always-visible map -->
+        <div style="position:sticky;top:28px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div class="card-title" style="margin:0">Installation Map</div>
+            <div style="font-size:11px;color:var(--ink3)">dots = existing · <span style="color:var(--accent);font-weight:600">★ = searched pin</span></div>
+          </div>
+          <div id="sug-map" style="height:520px;border-radius:var(--r2);border:1px solid var(--border);overflow:hidden"></div>
+          <div id="sug-map-legend" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
         </div>
+
       </div>
     </div>
 
@@ -691,6 +698,9 @@ function showPage(id){
       renderRouteView();
       if(routeMap) routeMap.invalidateSize();
     },50);
+  }
+  if(id==='suggest'){
+    setTimeout(()=>{ initSugMapView(); },80);
   }
 }
 
@@ -1093,7 +1103,7 @@ function runSuggest(){
       coords=[eLat,eLng];
       usingFallback=true;
     } else {
-      resEl.style.display='block';
+      resEl.style.display='flex';
       document.getElementById('sug-grid').innerHTML='<div class="sug-card" style="grid-column:1/-1;padding:20px"><div style="font-family:var(--mono);font-size:13px;color:var(--accent);margin-bottom:6px">Pincode '+pin+' outside database range</div><div style="font-size:13px;color:var(--ink2)">This pincode is outside Bangalore\'s 560xxx/562xxx range. Add it manually via the Add Installation page.</div></div>';
       document.getElementById('sug-add-btn').style.display='none';
       return;
@@ -1158,7 +1168,7 @@ function runSuggest(){
   lastSuggestedPin=pin;
   lastSuggestedArea=area;
 
-  resEl.style.display='block';
+  resEl.style.display='flex';
   const grid=document.getElementById('sug-grid');
   const ranks=['Best match','2nd choice','3rd choice'];
   grid.innerHTML=top3.map((s,i)=>`
@@ -1192,36 +1202,39 @@ function runSuggest(){
   drawSugMap(lat, lng, pin);
 }
 
-function drawSugMap(searchLat, searchLng, searchPin){
-  // Init map once
+/* ── Build calDpMap helper ── */
+function buildCalDpMap(){
+  const m={};
+  DAY_PLAN.forEach(dp=>{ m[parseInt(dp.date)]=dp; });
+  const DOW2=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  db.forEach(r=>{
+    const cd=getEntryCalDate(r);
+    if(cd && !m[cd]) m[cd]={date:cd+' Apr',dateLabel:DOW2[new Date(2025,3,cd).getDay()]+', '+cd+' Apr',color:'#6B7280',bg:'#F3F4F6'};
+  });
+  return m;
+}
+
+/* ── Init map + draw all existing installation dots ── */
+let sugSearchMarker=null; // separate tracker for the star pin
+function initSugMapView(){
   if(!sugMap){
     sugMap=L.map('sug-map',{zoomControl:true}).setView([12.97,77.59],11);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
       attribution:'© OpenStreetMap',maxZoom:18
     }).addTo(sugMap);
+  } else {
+    // Clear existing dot markers (but not star)
+    sugMapMarkers.forEach(m=>sugMap.removeLayer(m));
+    sugMapMarkers=[];
   }
-  // Clear old markers
-  sugMapMarkers.forEach(m=>sugMap.removeLayer(m));
-  sugMapMarkers=[];
-
-  // Build calendar-date → dp map for colors
-  const calDpMap={};
-  DAY_PLAN.forEach(dp=>{ calDpMap[parseInt(dp.date)]=dp; });
-  const DOW2=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  db.forEach(r=>{
-    const cd=getEntryCalDate(r);
-    if(cd && !calDpMap[cd]){
-      calDpMap[cd]={date:cd+' Apr',dateLabel:DOW2[new Date(2025,3,cd).getDay()]+', '+cd+' Apr',color:'#6B7280',bg:'#F3F4F6'};
-    }
-  });
-
-  // Plot all db entries as small colored circles
+  const calDpMap=buildCalDpMap();
   const allPoints=[];
+
   db.forEach(r=>{
     const coords=PIN_COORDS[r.pin]; if(!coords) return;
     const [lat,lng]=coords;
     const cd=getEntryCalDate(r);
-    const dp=calDpMap[cd]||{date:'?',color:'#9CA3AF'};
+    const dp=calDpMap[cd]||{date:'?',color:'#9CA3AF',bg:'#F3F4F6'};
     allPoints.push([lat,lng]);
     const icon=L.divIcon({
       html:`<div style="width:14px;height:14px;border-radius:50%;background:${dp.color};border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>`,
@@ -1237,43 +1250,73 @@ function drawSugMap(searchLat, searchLng, searchPin){
     sugMapMarkers.push(mk);
   });
 
-  // Plot the searched pincode as a star marker
-  const starIcon=L.divIcon({
-    html:`<div style="width:36px;height:36px;border-radius:50%;background:#fff;border:3px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 3px 10px rgba(200,75,47,0.5)">★</div>`,
-    iconSize:[36,36],iconAnchor:[18,18],className:''
-  });
-  const starMk=L.marker([searchLat,searchLng],{icon:starIcon,zIndexOffset:1000})
-    .addTo(sugMap)
-    .bindPopup(`<div style="font-family:sans-serif"><div style="font-weight:700;color:var(--accent)">Searched: ${searchPin}</div><div style="font-size:11px;color:#666;margin-top:2px">New installation</div></div>`)
-    .openPopup();
-  sugMapMarkers.push(starMk);
-  allPoints.push([searchLat,searchLng]);
-
-  // Fit bounds
   if(allPoints.length>0){
-    sugMap.fitBounds(allPoints.length===1?L.latLngBounds([allPoints[0],allPoints[0]]).pad(0.5):L.latLngBounds(allPoints).pad(0.1));
+    sugMap.fitBounds(L.latLngBounds(allPoints).pad(0.1));
   }
   setTimeout(()=>sugMap.invalidateSize(),150);
 
-  // Build legend
-  const seen=new Set();
-  const legendItems=[];
-  db.forEach(r=>{
-    const cd=getEntryCalDate(r);
-    if(cd && !seen.has(cd)){
-      seen.add(cd);
-      const dp=calDpMap[cd];
-      if(dp) legendItems.push({cd,dp});
-    }
-  });
+  // Legend
+  const calDpMap2=buildCalDpMap();
+  const seen=new Set(); const legendItems=[];
+  db.forEach(r=>{ const cd=getEntryCalDate(r); if(cd&&!seen.has(cd)){seen.add(cd);const dp=calDpMap2[cd];if(dp)legendItems.push({cd,dp});} });
   legendItems.sort((a,b)=>a.cd-b.cd);
-  document.getElementById('sug-map-legend').innerHTML=
-    legendItems.map(({dp})=>`<div style="display:flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);background:${dp.bg||'#eee'};padding:3px 8px;border-radius:12px">
+  document.getElementById('sug-map-legend').innerHTML=legendItems.map(({dp})=>`
+    <div style="display:flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);background:${dp.bg||'#eee'};padding:3px 8px;border-radius:12px">
       <div style="width:10px;height:10px;border-radius:50%;background:${dp.color}"></div>${dp.date}
-    </div>`).join('')+
-    `<div style="display:flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);background:#FFF0EE;padding:3px 8px;border-radius:12px">
-      <span style="color:var(--accent);font-size:13px">★</span> ${searchPin} (new)
-    </div>`;
+    </div>`).join('');
+}
+
+/* ── Add/update just the searched star pin ── */
+function updateSugMapPin(searchLat, searchLng, searchPin){
+  if(!sugMap) return;
+  if(sugSearchMarker){ sugMap.removeLayer(sugSearchMarker); sugSearchMarker=null; }
+  const starIcon=L.divIcon({
+    html:`<div style="width:34px;height:34px;border-radius:50%;background:#fff;border:3px solid #C84B2F;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 3px 10px rgba(200,75,47,0.55)">★</div>`,
+    iconSize:[34,34],iconAnchor:[17,17],className:''
+  });
+  sugSearchMarker=L.marker([searchLat,searchLng],{icon:starIcon,zIndexOffset:1000})
+    .addTo(sugMap)
+    .bindPopup(`<div style="font-family:sans-serif"><div style="font-weight:700;color:#C84B2F">Searching: ${searchPin}</div><div style="font-size:11px;color:#666;margin-top:2px">Click "Get suggestions" for best day</div></div>`)
+    .openPopup();
+  // Pan map to show the star without resetting full zoom
+  sugMap.panTo([searchLat,searchLng]);
+  setTimeout(()=>sugMap.invalidateSize(),100);
+  // Update legend
+  const legend=document.getElementById('sug-map-legend');
+  const existing=legend.querySelector('[data-sug-pin]');
+  if(existing) existing.remove();
+  const tag=document.createElement('div');
+  tag.dataset.sugPin='1';
+  tag.style.cssText='display:flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);background:#FFF0EE;padding:3px 8px;border-radius:12px;border:1px solid #C84B2F44';
+  tag.innerHTML=`<span style="color:#C84B2F;font-size:13px">★</span> ${searchPin}`;
+  legend.appendChild(tag);
+}
+
+/* ── Live preview: as user types pin, drop star on map ── */
+function sugLivePin(val){
+  if(!/^\d{6}$/.test(val)) return;
+  const coords=PIN_COORDS[val];
+  if(!coords){ // try neighbour interpolation
+    const num=parseInt(val); const nb=[];
+    for(let d=1;d<=30;d++){
+      if(PIN_COORDS[String(num-d)]) nb.push(PIN_COORDS[String(num-d)]);
+      if(PIN_COORDS[String(num+d)]) nb.push(PIN_COORDS[String(num+d)]);
+      if(nb.length>=4) break;
+    }
+    if(nb.length>0){
+      const la=nb.reduce((s,c)=>s+c[0],0)/nb.length;
+      const lo=nb.reduce((s,c)=>s+c[1],0)/nb.length;
+      updateSugMapPin(la,lo,val);
+    }
+    return;
+  }
+  updateSugMapPin(coords[0],coords[1],val);
+}
+
+/* ── Called at end of runSuggest ── */
+function drawSugMap(searchLat, searchLng, searchPin){
+  initSugMapView();          // refresh dots (in case db changed)
+  updateSugMapPin(searchLat, searchLng, searchPin);
 }
 
 function addFromSuggest(){
