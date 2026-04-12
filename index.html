@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.005</title>
+<title>BLR Tracker · v1.006</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.005</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.006</span></div>
     </div>
 
     <div class="stat-box">
@@ -393,15 +393,15 @@ tr:hover td{background:rgba(0,0,0,0.015)}
         <!-- Left: ordered stop list -->
         <div style="display:flex;flex-direction:column;gap:10px;height:520px">
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;display:flex;flex-direction:column;flex:1;min-height:0">
-            <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
-              <span style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:var(--ink2)">Installation order</span>
-              <div style="display:flex;gap:6px">
-                <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px" onclick="optimiseRoute()">Auto-sort by proximity</button>
-                <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px" onclick="copyRouteText()">Copy list</button>
-              </div>
+            <!-- Guide tabs -->
+            <div id="route-guide-tabs" style="display:flex;border-bottom:1px solid var(--border);flex-shrink:0"></div>
+            <!-- Action buttons row -->
+            <div style="padding:6px 10px;border-bottom:1px solid var(--border2);display:flex;gap:6px;flex-shrink:0">
+              <button class="btn btn-secondary" style="font-size:11px;padding:3px 9px" onclick="optimiseRoute()">Auto-sort by proximity</button>
+              <button class="btn btn-secondary" style="font-size:11px;padding:3px 9px" onclick="copyRouteText()">Copy list</button>
             </div>
             <div id="route-stops" style="overflow-y:auto;flex:1;min-height:0"></div>
-            <div style="padding:8px 14px;border-top:1px solid var(--border2);font-size:11px;color:var(--ink3);font-family:var(--mono);flex-shrink:0">
+            <div style="padding:7px 14px;border-top:1px solid var(--border2);font-size:11px;color:var(--ink3);font-family:var(--mono);flex-shrink:0">
               Drag to reorder · auto-saves
             </div>
           </div>
@@ -1460,14 +1460,40 @@ let routeOrders={}; // dayNum -> [ordered list of entries]
 let routeStopTimes={}; // entryId -> "HH:MM"
 let routeTimeConfirmed={}; // entryId -> bool
 let routeGuide={}; // entryId -> 1|2 (null = unassigned)
+let routeGuideTab='all'; // 'all'|'unassigned'|1|2 — active tab in left panel
 
 const GUIDE_COLORS={
-  1:{color:'#1e40af',bg:'#DBEAFE',label:'Guide 1',light:'#93c5fd'},
-  2:{color:'#b45309',bg:'#FEF3C7',label:'Guide 2',light:'#fcd34d'},
+  1:{color:'#1e40af',bg:'#DBEAFE',label:'Murthy',light:'#93c5fd'},
+  2:{color:'#b45309',bg:'#FEF3C7',label:'Divakar',light:'#fcd34d'},
 };
 const GUIDE_UNASSIGNED={color:'#6B7280',bg:'#F3F4F6',label:'Unassigned'};
 
 function guideInfo(id){ return GUIDE_COLORS[routeGuide[id]]||GUIDE_UNASSIGNED; }
+
+function renderRouteGuideTabs(stops){
+  const el=document.getElementById('route-guide-tabs'); if(!el) return;
+  const unassignedCount=(stops||[]).filter(r=>!routeGuide[r.id]).length;
+  const g1count=(stops||[]).filter(r=>routeGuide[r.id]===1).length;
+  const g2count=(stops||[]).filter(r=>routeGuide[r.id]===2).length;
+  const tabs=[
+    {key:'unassigned',label:'Unassigned',count:unassignedCount,color:'#6B7280',bg:'#F3F4F6'},
+    {key:1,label:GUIDE_COLORS[1].label,count:g1count,color:GUIDE_COLORS[1].color,bg:GUIDE_COLORS[1].bg},
+    {key:2,label:GUIDE_COLORS[2].label,count:g2count,color:GUIDE_COLORS[2].color,bg:GUIDE_COLORS[2].bg},
+  ];
+  el.innerHTML=tabs.map(t=>{
+    const active=routeGuideTab===t.key;
+    return `<button onclick="setRouteGuideTab(${JSON.stringify(t.key)})"
+      style="flex:1;padding:9px 4px;border:none;border-bottom:2px solid ${active?t.color:'transparent'};background:${active?t.bg+'88':'transparent'};color:${active?t.color:'var(--ink3)'};font-size:11px;font-family:var(--mono);font-weight:${active?'700':'400'};cursor:pointer;transition:all 0.15s;display:flex;align-items:center;justify-content:center;gap:5px">
+      ${t.label}
+      <span style="background:${active?t.color:'var(--surface2)'};color:${active?'#fff':'var(--ink3)'};font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600">${t.count}</span>
+    </button>`;
+  }).join('');
+}
+
+function setRouteGuideTab(key){
+  routeGuideTab=key;
+  renderRouteView();
+}
 
 function setStopGuide(entryId, guide, dayNum){
   if(routeGuide[entryId]===guide) delete routeGuide[entryId]; // toggle off
@@ -1620,15 +1646,32 @@ function renderRouteView(){
 }
 
 function renderRouteStops(dayNum){
-  const stops=getRouteStops(dayNum);
+  const allStops=getRouteStops(dayNum);
   const dp=dayInfo(dayNum);
   const el=document.getElementById('route-stops');
-  if(!stops.length){
+
+  // Render guide tabs (always, even if no stops)
+  renderRouteGuideTabs(allStops);
+
+  if(!allStops.length){
     el.innerHTML='<div style="padding:24px;text-align:center;color:var(--ink3);font-size:13px;font-style:italic">No confirmed installations for this day yet</div>';
     document.getElementById('route-summary').style.display='none';
     return;
   }
-  el.innerHTML=stops.map((r,i)=>{
+
+  // Filter stops by active guide tab
+  const stops=routeGuideTab==='unassigned' ? allStops.filter(r=>!routeGuide[r.id])
+             : routeGuideTab===1            ? allStops.filter(r=>routeGuide[r.id]===1)
+             : routeGuideTab===2            ? allStops.filter(r=>routeGuide[r.id]===2)
+             : allStops;
+
+  if(!stops.length){
+    const tabName=routeGuideTab==='unassigned'?'Unassigned':(routeGuideTab?GUIDE_COLORS[routeGuideTab].label:'');
+    el.innerHTML=`<div style="padding:24px;text-align:center;color:var(--ink3);font-size:13px;font-style:italic">No stops assigned to ${tabName} yet</div>`;
+    return;
+  }
+  el.innerHTML=stops.map((r)=>{
+    const i=allStops.indexOf(r); // use global index to match map marker numbers
     const coords=PIN_COORDS[r.pin];
     const hasCoords=!!coords;
     const confirmedTime=routeStopTimes[r.id]||'';
