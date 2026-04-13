@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.037</title>
+<title>BLR Tracker · v1.038</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -173,7 +173,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.037</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.038</span></div>
     </div>
 
     <div class="stat-box">
@@ -1796,7 +1796,7 @@ function renderRouteStops(dayNum){
         ${confirmedTime?`<span style="font-size:9px;font-family:var(--mono);font-weight:600;color:#2E7D32;background:#E8F5E9;padding:1px 4px;border-radius:6px;flex-shrink:0">${fmtTime(confirmedTime)}</span>`:''}
         ${!hasCoords?`<span style="font-size:9px;color:#92400e;background:#FEF3C7;padding:0 3px;border-radius:5px;flex-shrink:0" title="Pincode not mapped">!</span>`:''}
       </div>
-      <div style="display:flex;align-items:center;gap:3px;margin-top:3px;overflow-x:auto;scrollbar-width:none">
+      <div style="display:flex;align-items:center;gap:3px;margin-top:3px;flex-wrap:wrap">
         ${pillsHtml}
       </div>
     </div>`;
