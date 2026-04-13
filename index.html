@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.055</title>
+<title>BLR Tracker · v1.056</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -206,7 +206,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.055</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.056</span></div>
     </div>
 
     <div class="stat-box">
@@ -500,7 +500,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.055';
+const APP_VERSION = 'v1.056';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -964,6 +964,39 @@ function parseLocation(str){
   return null;
 }
 
+function isShortMapUrl(str){
+  return /maps\.app\.goo\.gl|goo\.gl\/maps/i.test(str);
+}
+
+function resolveShortMapUrl(shortUrl){
+  // Try multiple CORS proxies for reliability
+  const proxies=[
+    url=>`https://corsproxy.io/?${encodeURIComponent(url)}`,
+    url=>`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  ];
+  function tryProxy(i){
+    if(i>=proxies.length) return Promise.reject('Could not resolve short URL');
+    return fetch(proxies[i](shortUrl), {redirect:'follow'})
+      .then(res=>{
+        // allorigins returns the page HTML; corsproxy follows redirect
+        const finalUrl=res.url||'';
+        // Check if the final URL has coords
+        let loc=parseLocation(finalUrl);
+        if(loc) return loc;
+        // If not in URL, check the response body for coords
+        return res.text().then(body=>{
+          // Look for coords in the HTML/redirect body
+          loc=parseLocation(body);
+          if(loc) return loc;
+          // Try next proxy
+          return tryProxy(i+1);
+        });
+      })
+      .catch(()=>tryProxy(i+1));
+  }
+  return tryProxy(0);
+}
+
 function zoneClass(z){return 'zb-'+(z||'').toLowerCase().replace(/[^a-z]/g,'');}
 function zoneName(pin){
   const p=PLAN_COORDS.find(x=>x.pin===pin);return p?p.zone:'—';
@@ -1392,14 +1425,34 @@ function autoDayFromDate(){
   }
 }
 
+let _locPreviewTimer=null;
 function previewLocation(){
   const val=document.getElementById('f-location').value;
   const hint=document.getElementById('f-loc-hint');
   const parsed=parseLocation(val);
-  if(val.trim() && parsed) hint.innerHTML=`<span style="color:#2E7D32">✓ ${parsed.lat.toFixed(5)}, ${parsed.lng.toFixed(5)}</span>`;
-  else if(val.trim() && (val.includes('goo.gl')||val.includes('maps.app'))) hint.innerHTML=`<span style="color:#B45309">Short URLs not supported — use full Maps link</span>`;
-  else if(val.trim()) hint.innerHTML=`<span style="color:#B45309">Could not parse — paste Maps URL or lat,lng</span>`;
-  else hint.textContent='';
+  if(val.trim() && parsed){
+    hint.innerHTML=`<span style="color:#2E7D32">✓ ${parsed.lat.toFixed(5)}, ${parsed.lng.toFixed(5)}</span>`;
+  } else if(val.trim() && isShortMapUrl(val)){
+    hint.innerHTML=`<span style="color:#2563eb">⏳ Resolving short URL…</span>`;
+    clearTimeout(_locPreviewTimer);
+    _locPreviewTimer=setTimeout(()=>{
+      resolveShortMapUrl(val).then(loc=>{
+        // Check value hasn't changed while we were resolving
+        if(document.getElementById('f-location').value===val){
+          hint.innerHTML=`<span style="color:#2E7D32">✓ ${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}</span>`;
+          // Store resolved coords so addInstallation can use them
+          hint.dataset.resolvedLat=loc.lat;
+          hint.dataset.resolvedLng=loc.lng;
+        }
+      }).catch(()=>{
+        if(document.getElementById('f-location').value===val){
+          hint.innerHTML=`<span style="color:#B45309">Could not resolve — try the full Maps URL</span>`;
+        }
+      });
+    },300);
+  } else if(val.trim()){
+    hint.innerHTML=`<span style="color:#B45309">Could not parse — paste Maps URL or lat,lng</span>`;
+  } else { hint.textContent=''; }
 }
 
 function addInstallation(){
@@ -1431,6 +1484,14 @@ function addInstallation(){
   // Parse Google Maps location if provided
   const loc=parseLocation(locInput);
   if(loc){ entry.lat=loc.lat; entry.lng=loc.lng; }
+  else {
+    // Check if short URL was already resolved in preview
+    const hint=document.getElementById('f-loc-hint');
+    if(hint && hint.dataset.resolvedLat && hint.dataset.resolvedLng){
+      entry.lat=parseFloat(hint.dataset.resolvedLat);
+      entry.lng=parseFloat(hint.dataset.resolvedLng);
+    }
+  }
   db.unshift(entry);
   _dirtyRows.add(entry.id);
   updateStats();clearForm();scheduleSave();toast('Added: '+(name||phone));
@@ -1443,7 +1504,8 @@ function clearForm(){
   document.getElementById('f-day').value='';
   document.getElementById('f-status').value='paid';
   document.getElementById('f-hint').textContent='';
-  document.getElementById('f-loc-hint').textContent='';
+  const locHint=document.getElementById('f-loc-hint');
+  locHint.textContent=''; delete locHint.dataset.resolvedLat; delete locHint.dataset.resolvedLng;
 }
 
 /* ─── BULK IMPORT ─── */
@@ -2693,18 +2755,23 @@ function updateEntry(id,field,value){
 function updateEntryLocation(id,value){
   const row=db.find(r=>r.id===id);
   if(!row) return;
-  if(!value.trim()){ delete row.lat; delete row.lng; }
-  else {
-    const loc=parseLocation(value);
-    if(loc){ row.lat=loc.lat; row.lng=loc.lng; }
-    else if(value.includes('goo.gl')||value.includes('maps.app')){
-      toast('Short URLs (goo.gl) not supported — use the full Google Maps URL. Tap "Share → Copy link" and choose the long URL.');
-      return;
-    } else { toast('Could not parse location — paste a Google Maps link or lat,lng'); return; }
+  if(!value.trim()){ delete row.lat; delete row.lng; _dirtyRows.add(id); scheduleSave(); renderSheet(); return; }
+  // Try direct parse first
+  const loc=parseLocation(value);
+  if(loc){ row.lat=loc.lat; row.lng=loc.lng; _dirtyRows.add(id); scheduleSave(); renderSheet(); return; }
+  // Short URL? Resolve it asynchronously
+  if(isShortMapUrl(value)){
+    toast('Resolving short URL…');
+    resolveShortMapUrl(value).then(loc=>{
+      row.lat=loc.lat; row.lng=loc.lng;
+      _dirtyRows.add(id); scheduleSave(); renderSheet();
+      toast('📍 Location saved: '+loc.lat.toFixed(5)+', '+loc.lng.toFixed(5));
+    }).catch(()=>{
+      toast('Could not resolve short URL — try pasting the full Google Maps URL instead');
+    });
+    return;
   }
-  _dirtyRows.add(id);
-  scheduleSave();
-  renderSheet();
+  toast('Could not parse location — paste a Google Maps link or lat,lng');
 }
 
 function addSheetRow(calDate){
