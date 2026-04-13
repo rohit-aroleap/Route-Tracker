@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.047</title>
+<title>BLR Tracker · v1.048</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -205,7 +205,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.047</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.048</span></div>
     </div>
 
     <div class="stat-box">
@@ -2040,6 +2040,8 @@ function renderRouteStops(dayNum){
         <div style="padding:5px 8px;background:${c.bg};border-bottom:2px solid ${c.color};flex-shrink:0;display:flex;align-items:center;gap:5px">
           <span style="font-size:11px;font-weight:700;color:${c.color};font-family:var(--mono);letter-spacing:0.02em">${c.label}</span>
           <span style="font-size:9px;background:${c.color};color:#fff;padding:1px 5px;border-radius:8px;font-weight:600">${c.stops.length}</span>
+          <span style="flex:1"></span>
+          ${c.guide?`<button onclick="copyGuideSchedule(${c.guide},${dayNum})" title="Copy schedule for WhatsApp" style="font-size:10px;padding:2px 6px;border-radius:var(--r);border:1px solid ${c.color}33;background:${c.bg};color:${c.color};cursor:pointer;font-family:var(--mono);display:flex;align-items:center;gap:3px;white-space:nowrap"><span style="font-size:12px">📋</span> Copy</button>`:''}
         </div>
         <div id="${c.id}" style="flex:1;overflow-y:auto;min-height:0">${c.stops.map(r=>cardHtml(r)).join('')}</div>
       </div>`
@@ -2075,6 +2077,51 @@ function renderRouteStops(dayNum){
         scheduleSave();
       }
     });
+  });
+}
+
+function copyGuideSchedule(guideNum, dayNum){
+  const dp=DAY_PLAN.find(d=>parseInt(d.date)===dayNum);
+  const dayLabel=dp?dp.dateLabel:'Day '+dayNum;
+  const guideName=GUIDE_COLORS[guideNum]?GUIDE_COLORS[guideNum].label:'Guide';
+  const allStops=getSortedRouteStops(dayNum);
+  const stops=allStops.filter(r=>routeGuide[r.id]===guideNum);
+  if(!stops.length){ toast('No stops assigned to '+guideName); return; }
+
+  let lines=[];
+  lines.push('📅 *'+dayLabel+'*');
+  lines.push('👤 *@'+guideName+'*');
+  lines.push('');
+
+  stops.forEach((r,i)=>{
+    const time=routeStopTimes[r.id];
+    const timeStr=time?fmtTime(time):'Time TBD';
+    const status=normalizeStatus(r.status);
+    const statusLabel=STATUS_OPTIONS.find(o=>o.value===status);
+    const statusStr=statusLabel?statusLabel.label:(r.status||'');
+
+    lines.push('*'+(i+1)+'. '+( r.name||'—')+'*');
+    lines.push('📞 '+( r.phone||'—'));
+    if(r.area) lines.push('📍 '+ r.area+(r.pin?', '+r.pin:''));
+    else if(r.pin) lines.push('📍 Pincode: '+r.pin);
+    if(r.lat&&r.lng) lines.push('🗺 https://maps.google.com/?q='+r.lat+','+r.lng);
+    lines.push('🕐 '+timeStr);
+    if(statusStr) lines.push('📋 '+statusStr);
+    if(r.notes) lines.push('📝 '+r.notes);
+    lines.push('');
+  });
+
+  lines.push('Total: '+stops.length+' installation'+(stops.length!==1?'s':''));
+
+  const text=lines.join('\n');
+  navigator.clipboard.writeText(text).then(()=>{
+    toast('Copied '+stops.length+' stops for '+guideName+' — paste in WhatsApp');
+  }).catch(()=>{
+    // Fallback for older browsers
+    const ta=document.createElement('textarea'); ta.value=text;
+    ta.style.cssText='position:fixed;left:-9999px'; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    toast('Copied '+stops.length+' stops for '+guideName);
   });
 }
 
