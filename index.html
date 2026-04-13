@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.022</title>
+<title>BLR Tracker · v1.023</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.022</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.023</span></div>
     </div>
 
     <div class="stat-box">
@@ -513,6 +513,14 @@ function initFirebase(){
           db = db.filter(r => fbIds.has(r.id));
         }
         nextId = Math.max(nextId, ...fbRows.map(r=>r.id+1), 1);
+        // Push any historical entries not yet in Firebase
+        const fbIdSet = new Set(fbRows.map(r=>r.id));
+        HISTORICAL_ENTRIES.forEach(r=>{
+          if(!fbIdSet.has(r.id)){
+            rowsRef.child(String(r.id)).set(r);
+            db.push(r);
+          }
+        });
         updateStats(); renderLog(); setSyncStatus('online');
         try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({db,nextId,sheetOrders,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,routeGuide,savedAt:new Date().toISOString()})); }catch(e){}
       } else if(!snap.exists() || Object.keys(allRows||{}).length === 0){
@@ -625,6 +633,24 @@ const SEED = [
   {name:"Arun",phone:"9415060527",area:"Whitefield",pin:"560066",date:"20th April",day:3,status:"confirmed",zone:"East"},
   {name:"Rajesh",phone:"9071367316",area:"Nelamangala",pin:"562123",date:"21st April",day:7,status:"confirmed",zone:"Outer"},
   {name:"Chitra",phone:"9845034252",area:"Bommasandra Industrial Area",pin:"560099",date:"21st April",day:7,status:"confirmed",zone:"Outer"},
+];
+
+// Historical entries (past installs) — pushed to Firebase once if not already present
+const HISTORICAL_ENTRIES = [
+  {id:1001,name:"Swaroop",      phone:"9482673073",area:"",pin:"",date:"1 Apr", day:null,status:"done",zone:"",notes:""},
+  {id:1002,name:"Soham Sen",    phone:"8584058116",area:"",pin:"",date:"1 Apr", day:null,status:"done",zone:"",notes:"1rs payment done"},
+  {id:1003,name:"Bhargavi",     phone:"8106150867",area:"",pin:"",date:"1 Apr", day:null,status:"done",zone:"",notes:""},
+  {id:1004,name:"Mansoor",      phone:"9886353381",area:"",pin:"",date:"2 Apr", day:null,status:"done",zone:"",notes:""},
+  {id:1005,name:"Saikat",       phone:"8637316578",area:"",pin:"",date:"2 Apr", day:null,status:"done",zone:"",notes:""},
+  {id:1006,name:"Ujjwal",       phone:"7999045265",area:"",pin:"",date:"3 Apr", day:null,status:"done",zone:"",notes:""},
+  {id:1007,name:"Vatsa",        phone:"9880212347",area:"",pin:"",date:"4 Apr", day:null,status:"done",zone:"",notes:""},
+  {id:1008,name:"Kiran MS",     phone:"9972093182",area:"",pin:"",date:"4 Apr", day:null,status:"done",zone:"",notes:""},
+  {id:1009,name:"Amith",        phone:"9845588660",area:"",pin:"",date:"4 Apr", day:null,status:"confirmed",zone:"",notes:""},
+  {id:1010,name:"Smit",         phone:"7406657474",area:"",pin:"",date:"6 Apr", day:null,status:"done",zone:"",notes:""},
+  {id:1011,name:"Prakash",      phone:"9632745377",area:"",pin:"",date:"6 Apr", day:null,status:"done",zone:"",notes:""},
+  {id:1012,name:"Srimathi",     phone:"9845185898",area:"",pin:"",date:"6 Apr", day:null,status:"done",zone:"",notes:""},
+  {id:1013,name:"Akshay",       phone:"9164763633",area:"",pin:"",date:"6 Apr", day:null,status:"done",zone:"",notes:""},
+  {id:1014,name:"Anoop",        phone:"9538041199",area:"",pin:"",date:"6 Apr", day:null,status:"done",zone:"",notes:""},
 ];
 
 /* Complete Bangalore pincode coordinate database — 560001 to 562xxx */
