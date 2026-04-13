@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.020</title>
+<title>BLR Tracker · v1.021</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.020</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.021</span></div>
     </div>
 
     <div class="stat-box">
@@ -431,14 +431,16 @@ tr:hover td{background:rgba(0,0,0,0.015)}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script>
 /* ─── FIREBASE (real-time sync) ───────────────────────────────────────────
    SETUP (one-time, ~5 min):
    1. Go to https://console.firebase.google.com → create a project
    2. Add a Realtime Database (Start in test mode)
    3. Project Settings → Your apps → Add web app → copy config below
-   4. In Realtime Database → Rules, set:
-        { "rules": { ".read": true, ".write": true } }
+   4. In Firebase Console → Authentication → Sign-in methods → enable Anonymous
+   5. In Realtime Database → Rules, set:
+        { "rules": { ".read": "auth != null", ".write": "auth != null" } }
    ─────────────────────────────────────────────────────────────────────── */
 const FIREBASE_CONFIG = {
   apiKey:            "AIzaSyDMaVnRPjK55-T95m9AS49Ju_bgR_p42ic",
@@ -462,8 +464,13 @@ function initFirebase(){
     firebase.initializeApp(FIREBASE_CONFIG);
     const db2 = firebase.database();
     _fbRef = db2.ref(FB_PATH);
-    _isFirebaseReady = true;
     setSyncStatus('connecting');
+
+    // Sign in anonymously so database rules (auth != null) are satisfied
+    firebase.auth().signInAnonymously().catch(e=>console.warn('Auth failed',e));
+    firebase.auth().onAuthStateChanged(user=>{
+      if(user){ _isFirebaseReady = true; }
+    });
 
     const rowsRef = _fbRef.child('rows');
 
