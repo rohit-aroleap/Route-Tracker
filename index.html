@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.048</title>
+<title>BLR Tracker · v1.049</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -205,7 +205,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.048</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.049</span></div>
     </div>
 
     <div class="stat-box">
@@ -944,23 +944,25 @@ function getCoords(r){
 function parseLocation(str){
   if(!str) return null;
   str=str.trim();
+  function valid(lat,lng){ return lat>=-90&&lat<=90&&lng>=-180&&lng<=180?{lat,lng}:null; }
   // Raw coordinates: "12.9716, 77.5946" or "12.9716,77.5946"
   const rawMatch=str.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
-  if(rawMatch){ const lat=parseFloat(rawMatch[1]),lng=parseFloat(rawMatch[2]); if(lat>=-90&&lat<=90&&lng>=-180&&lng<=180) return {lat,lng}; }
-  // Google Maps URLs: various formats
-  // https://maps.google.com/?q=12.9716,77.5946
-  // https://www.google.com/maps?q=12.9716,77.5946
-  // https://www.google.com/maps/@12.9716,77.5946,17z
-  // https://maps.app.goo.gl/... (can't resolve short URLs without API)
-  // https://www.google.com/maps/place/.../@12.9716,77.5946,...
+  if(rawMatch){ return valid(parseFloat(rawMatch[1]),parseFloat(rawMatch[2])); }
+  // Google Maps URLs: many formats
   const patterns=[
-    /[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/,
-    /@(-?\d+\.?\d*),(-?\d+\.?\d*)/,
-    /\/(-?\d+\.?\d*),(-?\d+\.?\d*)/
+    /[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/,           // ?q=12.97,77.59
+    /[?&]query=(-?\d+\.?\d*),(-?\d+\.?\d*)/,        // ?query=12.97,77.59
+    /[?&]ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/,           // ?ll=12.97,77.59
+    /[?&]center=(-?\d+\.?\d*),(-?\d+\.?\d*)/,       // ?center=12.97,77.59
+    /[?&]sll=(-?\d+\.?\d*),(-?\d+\.?\d*)/,          // ?sll=12.97,77.59
+    /[?&]destination=(-?\d+\.?\d*),(-?\d+\.?\d*)/,   // directions dest
+    /@(-?\d+\.?\d*),(-?\d+\.?\d*)/,                  // /@12.97,77.59,17z
+    /!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/,              // data=!3d12.97!4d77.59
+    /\/(-?\d+\.?\d*),(-?\d+\.?\d*)/                  // /12.97,77.59
   ];
   for(const p of patterns){
     const m=str.match(p);
-    if(m){ const lat=parseFloat(m[1]),lng=parseFloat(m[2]); if(lat>=-90&&lat<=90&&lng>=-180&&lng<=180) return {lat,lng}; }
+    if(m){ const r=valid(parseFloat(m[1]),parseFloat(m[2])); if(r) return r; }
   }
   return null;
 }
@@ -1397,7 +1399,8 @@ function previewLocation(){
   const hint=document.getElementById('f-loc-hint');
   const parsed=parseLocation(val);
   if(val.trim() && parsed) hint.innerHTML=`<span style="color:#2E7D32">✓ ${parsed.lat.toFixed(5)}, ${parsed.lng.toFixed(5)}</span>`;
-  else if(val.trim()) hint.innerHTML=`<span style="color:#B45309">Could not parse coordinates</span>`;
+  else if(val.trim() && (val.includes('goo.gl')||val.includes('maps.app'))) hint.innerHTML=`<span style="color:#B45309">Short URLs not supported — use full Maps link</span>`;
+  else if(val.trim()) hint.innerHTML=`<span style="color:#B45309">Could not parse — paste Maps URL or lat,lng</span>`;
   else hint.textContent='';
 }
 
@@ -2665,7 +2668,10 @@ function updateEntryLocation(id,value){
   else {
     const loc=parseLocation(value);
     if(loc){ row.lat=loc.lat; row.lng=loc.lng; }
-    else { toast('Could not parse location'); return; }
+    else if(value.includes('goo.gl')||value.includes('maps.app')){
+      toast('Short URLs (goo.gl) not supported — use the full Google Maps URL. Tap "Share → Copy link" and choose the long URL.');
+      return;
+    } else { toast('Could not parse location — paste a Google Maps link or lat,lng'); return; }
   }
   _dirtyRows.add(id);
   scheduleSave();
@@ -2717,6 +2723,11 @@ renderSchedule();
 renderLog();
 if(savedAt) setTimeout(()=>showSaveIndicator(),300);
 initFirebase();
+
+// Flush any unsaved changes before page unload (refresh / close)
+window.addEventListener('beforeunload', ()=>{
+  if(_saveTimer){ clearTimeout(_saveTimer); saveToStorage(); }
+});
 // Restore last active page after a short delay (so Firebase/render is ready)
 try{
   const lastPage=localStorage.getItem('blr_active_page');
