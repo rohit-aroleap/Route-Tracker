@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.021</title>
+<title>BLR Tracker · v1.022</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.021</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.022</span></div>
     </div>
 
     <div class="stat-box">
@@ -514,7 +514,7 @@ function initFirebase(){
         }
         nextId = Math.max(nextId, ...fbRows.map(r=>r.id+1), 1);
         updateStats(); renderLog(); setSyncStatus('online');
-        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({db,nextId,sheetOrders,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,savedAt:new Date().toISOString()})); }catch(e){}
+        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({db,nextId,sheetOrders,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,routeGuide,savedAt:new Date().toISOString()})); }catch(e){}
       } else if(!snap.exists() || Object.keys(allRows||{}).length === 0){
         // Firebase empty — check old v1 path for migration
         db2.ref(FB_PATH_V1).once('value').then(oldSnap => {
