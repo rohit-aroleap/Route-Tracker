@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.030</title>
+<title>BLR Tracker · v1.031</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.030</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.031</span></div>
     </div>
 
     <div class="stat-box">
@@ -457,6 +457,7 @@ const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
+let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
 
 function initFirebase(){
   if(typeof firebase === 'undefined'){ setSyncStatus('offline'); return; }
@@ -492,8 +493,12 @@ function initFirebase(){
     rowsRef.on('child_removed', snap => {
       const r = snap.val(); if(!r || !r.id) return;
       if(_ignoreRowIds.has(r.id)){ _ignoreRowIds.delete(r.id); return; }
-      db = db.filter(x=>x.id!==r.id);
+      const idx=db.findIndex(x=>x.id===r.id);
+      if(idx>=0) db.splice(idx,1);
+      deletedIds[r.id]=true; // remember this was intentionally deleted
       updateStats(); renderLog(); setSyncStatus('online');
+      // Keep localStorage in sync so stale data never gets re-pushed
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({db,nextId,sheetOrders,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,routeGuide,deletedIds,savedAt:new Date().toISOString()})); }catch(e){}
     });
 
     // ── One-time snapshot: load current Firebase state on connect ─────────
@@ -507,13 +512,22 @@ function initFirebase(){
         db.length = 0;
         fbRows.forEach(r => db.push(r));
         nextId = Math.max(nextId, ...fbRows.map(r=>r.id+1), 1);
-        // Push any historical entries not yet in Firebase (child_added will add them to db)
+        // Push any historical entries not yet in Firebase — but ONLY if not intentionally deleted
         const fbIdSet = new Set(fbRows.map(r=>r.id));
-        HISTORICAL_ENTRIES.forEach(r=>{
-          if(!fbIdSet.has(r.id)) rowsRef.child(String(r.id)).set(r);
+        _fbRef.child('meta/deletedIds').once('value').then(delSnap=>{
+          const remoteDeleted = delSnap.val()||{};
+          Object.keys(remoteDeleted).forEach(k=>{ deletedIds[Number(k)]=true; });
+          HISTORICAL_ENTRIES.forEach(r=>{
+            if(!fbIdSet.has(r.id) && !deletedIds[r.id]) rowsRef.child(String(r.id)).set(r);
+          });
+        }).catch(()=>{
+          // If meta/deletedIds unreadable, fall back to checking local deletedIds only
+          HISTORICAL_ENTRIES.forEach(r=>{
+            if(!fbIdSet.has(r.id) && !deletedIds[r.id]) rowsRef.child(String(r.id)).set(r);
+          });
         });
         updateStats(); renderLog(); setSyncStatus('online');
-        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({db,nextId,sheetOrders,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,routeGuide,savedAt:new Date().toISOString()})); }catch(e){}
+        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({db,nextId,sheetOrders,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,routeGuide,deletedIds,savedAt:new Date().toISOString()})); }catch(e){}
       } else if(!snap.exists() || Object.keys(allRows||{}).length === 0){
         // Firebase empty — check old v1 path for migration
         db2.ref(FB_PATH_V1).once('value').then(oldSnap => {
@@ -547,6 +561,7 @@ function initFirebase(){
       if(m.routeTimeConfirmed)Object.assign(routeTimeConfirmed,m.routeTimeConfirmed);
       if(m.routeAvailSlots)   Object.assign(routeAvailSlots,   m.routeAvailSlots);
       if(m.routeGuide)        Object.assign(routeGuide,        m.routeGuide);
+      if(m.deletedIds)        Object.assign(deletedIds,        m.deletedIds);
       setSyncStatus('online');
     });
 
@@ -576,12 +591,17 @@ function deleteRowFromFirebase(id){
   _ignoreRowIds.add(id);
   _fbRef.child('rows').child(String(id)).remove()
     .catch(e=>console.warn('Firebase row delete error',e));
+  // Blacklist ID so historical seeding never re-adds it (persisted in Firebase meta)
+  deletedIds[id] = true;
+  _fbRef.child('meta/deletedIds').child(String(id)).set(true)
+    .catch(e=>console.warn('Firebase deletedIds write error',e));
 }
 
 function pushMetaToFirebase(){
   if(!_isFirebaseReady || !_fbRef) return;
   _fbRef.child('meta').set({
     nextId, sheetOrders, routeOrders, routeStopTimes, routeTimeConfirmed, routeAvailSlots, routeGuide,
+    deletedIds,
     _writtenBy: _clientId
   }).catch(e=>console.warn('Firebase meta write error',e));
 }
@@ -2093,6 +2113,7 @@ function saveToStorage(){
     // localStorage: always save full snapshot for offline use
     const payload={
       db,nextId,sheetOrders,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,routeGuide,
+      deletedIds,
       savedAt:new Date().toISOString()
     };
     localStorage.setItem(STORAGE_KEY,JSON.stringify(payload));
@@ -2125,7 +2146,8 @@ function loadFromStorage(){
       if(p.routeStopTimes) Object.assign(routeStopTimes,p.routeStopTimes);
       if(p.routeTimeConfirmed) Object.assign(routeTimeConfirmed,p.routeTimeConfirmed);
       if(p.routeAvailSlots) Object.assign(routeAvailSlots,p.routeAvailSlots);
-      if(p.routeGuide) Object.assign(routeGuide,p.routeGuide);
+      if(p.routeGuide)   Object.assign(routeGuide,p.routeGuide);
+      if(p.deletedIds)   Object.assign(deletedIds,p.deletedIds);
       return p.savedAt;
     }
   }catch(e){ console.warn('localStorage load failed',e); }
