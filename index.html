@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.054</title>
+<title>BLR Tracker · v1.055</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -206,7 +206,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.054</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.055</span></div>
     </div>
 
     <div class="stat-box">
@@ -222,9 +222,6 @@ tr:hover td{background:rgba(0,0,0,0.015)}
       <button class="nav-btn" onclick="showPage('suggest')">Pincode Suggester</button>
       <button class="nav-btn" onclick="showPage('route')">Route Planner</button>
       <button class="nav-btn" onclick="showPage('editdata')">Edit Data</button>
-    </div>
-
-    <div>
     </div>
 
     <div style="margin-top:auto;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08)">
@@ -503,7 +500,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.054';
+const APP_VERSION = 'v1.055';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -1060,6 +1057,7 @@ function updateStats(){
 
 function renderDayPills(){
   const el=document.getElementById('day-pills');
+  if(!el) return;
   el.innerHTML='';
   for(let d=1;d<=7;d++){
     const cnt=db.filter(r=>r.day==d).length;
