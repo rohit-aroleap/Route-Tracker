@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.027</title>
+<title>BLR Tracker · v1.028</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.027</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.028</span></div>
     </div>
 
     <div class="stat-box">
@@ -759,7 +759,10 @@ function haversine(lat1,lng1,lat2,lng2){
   const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
   return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
-function dayInfo(d){return DAY_PLAN.find(x=>x.day==d)||{label:"New/Other",color:"#888",bg:"#eee"}}
+// dayInfo now accepts a calendar date (1-30), not a DAY_PLAN day number
+function dayInfo(calDate){
+  return DAY_PLAN.find(x=>parseInt(x.date)===calDate)||{label:calDate+' Apr',date:String(calDate)+' Apr',color:'#065f46',bg:'#D1FAE5'};
+}
 
 /* Today's calendar day-of-month (April) */
 function todayCalDay(){ return new Date().getDate(); }
@@ -829,7 +832,7 @@ function showPage(id){
     if(!window.routeActiveDay){
       try{ const saved=localStorage.getItem('blr_route_day'); if(saved) window.routeActiveDay=parseInt(saved); }catch(e){}
     }
-    if(!window.routeActiveDay) window.routeActiveDay=todayDayNum();
+    if(!window.routeActiveDay) window.routeActiveDay=todayCalDay();
     if(!window.routeSelectedDays) window.routeSelectedDays=new Set([window.routeActiveDay]);
     renderRouteDayTabs();
     setTimeout(()=>{
@@ -1581,7 +1584,7 @@ function setStopTimePill(id,time24,dayNum){
     routeStopTimes[id]=time24;
     routeTimeConfirmed[id]=true;
     // Reorder: confirmed+timed first sorted by time, then rest
-    const stops=db.filter(r=>r.day==dayNum);
+    const stops=db.filter(r=>getEntryCalDate(r)===dayNum);
     const confirmed=stops.filter(r=>routeTimeConfirmed[r.id]&&routeStopTimes[r.id])
       .sort((a,b)=>routeStopTimes[a.id].localeCompare(routeStopTimes[b.id]));
     const rest=stops.filter(r=>!(routeTimeConfirmed[r.id]&&routeStopTimes[r.id]));
@@ -1620,20 +1623,27 @@ function initRouteMap(){
 function renderRouteDayTabs(){
   const tabs=document.getElementById('route-day-tabs');
   if(!tabs) return;
-  if(!window.routeSelectedDays) window.routeSelectedDays=new Set([todayDayNum()]);
+  // All calendar dates that have at least one entry, sorted ascending
+  const allCalDates=[...new Set(db.map(r=>getEntryCalDate(r)).filter(d=>d!==null))].sort((a,b)=>a-b);
+  if(!window.routeSelectedDays) window.routeSelectedDays=new Set([todayCalDay()]);
+  if(![...window.routeSelectedDays].some(d=>allCalDates.includes(d))){
+    const t=todayCalDay(); const f=allCalDates.find(d=>d>=t)||allCalDates[allCalDates.length-1]||t;
+    window.routeSelectedDays=new Set([f]); window.routeActiveDay=f;
+  }
   const sel=window.routeSelectedDays;
   const isMulti=sel.size>1;
-  const pillsHtml=DAY_PLAN.map(dp=>{
-    const cnt=getRouteStops(dp.day).length;
-    const active=sel.has(dp.day);
-    return `<button onclick="toggleRouteDay(${dp.day})" style="position:relative;padding:7px 14px;border-radius:20px;border:1.5px solid ${active?dp.color:'var(--border)'};background:${active?dp.bg:'var(--surface)'};color:${active?dp.color:'var(--ink2)'};font-size:12px;font-family:var(--sans);cursor:pointer;font-weight:${active?'600':'400'};transition:all 0.15s">${dp.date} <span style="opacity:0.7">${cnt} stops</span>${active&&isMulti?`<span style="position:absolute;top:-3px;right:-3px;width:7px;height:7px;border-radius:50%;background:${dp.color};border:1.5px solid var(--bg)"></span>`:''}
+  const pillsHtml=allCalDates.map(calDate=>{
+    const cnt=getRouteStops(calDate).length;
+    const dp=dayInfo(calDate);
+    const active=sel.has(calDate);
+    return `<button onclick="toggleRouteDay(${calDate})" style="position:relative;padding:7px 14px;border-radius:20px;border:1.5px solid ${active?dp.color:'var(--border)'};background:${active?dp.bg:'var(--surface)'};color:${active?dp.color:'var(--ink2)'};font-size:12px;font-family:var(--sans);cursor:pointer;font-weight:${active?'600':'400'};transition:all 0.15s;flex-shrink:0;white-space:nowrap">${dp.date} <span style="opacity:0.7">${cnt} stops</span>${active&&isMulti?`<span style="position:absolute;top:-3px;right:-3px;width:7px;height:7px;border-radius:50%;background:${dp.color};border:1.5px solid var(--bg)"></span>`:''}
     </button>`;
   }).join('');
-  tabs.innerHTML=`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${pillsHtml}${isMulti?`<button onclick="clearMultiDay()" style="padding:5px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--ink2);font-size:11px;font-family:var(--mono);cursor:pointer">✕ single view</button>`:''}</div>${isMulti?`<div style="margin-top:7px;font-size:11px;color:var(--ink3);font-family:var(--mono)">Multi-date view — markers are colour-coded · use <strong>Move to →</strong> on each stop to reschedule</div>`:''}`;
+  tabs.innerHTML=`<div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin;align-items:center">${pillsHtml}${isMulti?`<button onclick="clearMultiDay()" style="padding:5px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--ink2);font-size:11px;font-family:var(--mono);cursor:pointer;flex-shrink:0">✕ single view</button>`:''}</div>${isMulti?`<div style="margin-top:7px;font-size:11px;color:var(--ink3);font-family:var(--mono)">Multi-date view — markers are colour-coded · use <strong>Move to →</strong> on each stop to reschedule</div>`:''}`;
 }
 
 function getRouteStops(dayNum){
-  const all=db.filter(r=>r.day==dayNum);
+  const all=db.filter(r=>getEntryCalDate(r)===dayNum);
   if(!routeOrders[dayNum]){
     routeOrders[dayNum]=all.map(r=>r.id);
   } else {
@@ -1690,7 +1700,7 @@ function toggleRouteDay(dayNum){
 }
 
 function clearMultiDay(){
-  const day=window.routeActiveDay||[...(window.routeSelectedDays||new Set())][0]||todayDayNum();
+  const day=window.routeActiveDay||[...(window.routeSelectedDays||new Set())][0]||todayCalDay();
   window.routeSelectedDays=new Set([day]);
   renderRouteDayTabs();
   renderRouteView();
@@ -1700,7 +1710,7 @@ function clearMultiDay(){
 function renderRouteView(){
   const sel=[...(window.routeSelectedDays||new Set())].sort((a,b)=>a-b);
   if(sel.length<=1){
-    const day=sel[0]||todayDayNum();
+    const day=sel[0]||todayCalDay();
     renderRouteStops(day);
     drawRouteMap(day);
   } else {
@@ -1876,7 +1886,7 @@ function drawRouteMap(dayNum){
 function optimiseRoute(dayNum){
   dayNum=dayNum||window.routeActiveDay||[...(window.routeSelectedDays||new Set())][0];
   if(!dayNum) return;
-  const stops=db.filter(r=>r.day==dayNum);
+  const stops=db.filter(r=>getEntryCalDate(r)===dayNum);
   const withCoords=stops.filter(r=>PIN_COORDS[r.pin]);
   const noCoords=stops.filter(r=>!PIN_COORDS[r.pin]);
   if(withCoords.length<2){ toast('Not enough mapped stops to sort'); return; }
