@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.042</title>
+<title>BLR Tracker · v1.043</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -203,7 +203,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.042</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.043</span></div>
     </div>
 
     <div class="stat-box">
@@ -1370,8 +1370,10 @@ function bulkImport(){
     const [name,phone,area,pin,date,status]=parts;
     const d=getInferredDay(pin||'');
     const zone=zoneName(pin||'')||'';
-    db.unshift({id:nextId++,name:name||'',phone:phone||'',area:area||'',
-      pin:pin||'',date:date||'',day:d,status:status||'paid',zone});
+    const entry={id:nextId++,name:name||'',phone:phone||'',area:area||'',
+      pin:pin||'',date:date||'',day:d,status:status||'paid',zone};
+    db.unshift(entry);
+    _dirtyRows.add(entry.id);
     count++;
   });
   updateStats();
@@ -1974,6 +1976,16 @@ function renderRouteStops(dayNum){
         _dirtyRows.add(id);
         scheduleSave();
         setTimeout(()=>renderRouteView(),50);
+      },
+      onEnd:function(){
+        // Persist within-column reorder
+        kanbanCols.forEach(col=>{
+          const el=document.getElementById(col.id);
+          if(!el) return;
+          const ids=[...el.querySelectorAll('.route-stop')].map(e=>parseInt(e.dataset.id));
+          ids.forEach(id=>{ if(col.guide) routeGuide[id]=col.guide; else delete routeGuide[id]; });
+        });
+        scheduleSave();
       }
     });
   });
@@ -2102,6 +2114,7 @@ function optimiseRoute(dayNum){
     sorted.push(remaining.splice(best,1)[0]);
   }
   routeOrders[dayNum]=[...sorted,...noCoords].map(r=>r.id);
+  scheduleSave();
   renderRouteView();
   toast('Route optimised by proximity');
 }
@@ -2347,6 +2360,7 @@ function importJSON(file){
       Object.assign(routeStopTimes,p.routeStopTimes||{});
       Object.assign(routeTimeConfirmed,p.routeTimeConfirmed||{});
       Object.assign(routeAvailSlots,p.routeAvailSlots||{});
+      db.forEach(r=>_dirtyRows.add(r.id)); // push all rows to Firebase
       saveToStorage();
       updateStats(); renderLog();
       toast('Imported '+ p.db.length+' entries');
@@ -2492,6 +2506,7 @@ function initSheetDrag(){
             const planDay=DAY_PLAN.find(dp=>parseInt(dp.date)===newCalDay);
             entry.date=newCalDay>0?newCalDay+' Apr':'';
             entry.day=planDay?planDay.day:null;
+            _dirtyRows.add(rowId);
             updateStats();
             toast('Moved to '+newCalDay+' Apr');
           }
