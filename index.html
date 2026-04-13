@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.041</title>
+<title>BLR Tracker · v1.042</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -203,7 +203,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.041</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.042</span></div>
     </div>
 
     <div class="stat-box">
@@ -503,10 +503,11 @@ function renderActivePage(){
   const activePage=document.querySelector('.page.active');
   if(!activePage) return;
   switch(activePage.id){
-    case 'schedule': if(typeof renderLog==='function') renderLog(); break;
-    case 'calendar': if(typeof renderCalendar==='function') renderCalendar(); break;
-    case 'route':    if(typeof renderRouteView==='function') renderRouteView(); break;
-    case 'sheet':    if(typeof renderSheet==='function') renderSheet(); break;
+    case 'page-schedule': if(typeof renderCalendar==='function') renderCalendar(); if(typeof renderLog==='function') renderLog(); break;
+    case 'page-log':      if(typeof renderLog==='function') renderLog(); break;
+    case 'page-route':    if(typeof renderRouteView==='function') renderRouteView(); break;
+    case 'page-editdata': if(typeof renderSheet==='function') renderSheet(); break;
+    case 'page-suggest':  break;
   }
 }
 
@@ -620,13 +621,14 @@ function initFirebase(){
       const m = snap.val(); if(!m) return;
       if(m._writtenBy === _clientId) return; // skip own meta echo
       if(m.nextId)            nextId = m.nextId;
-      if(m.sheetOrders)       Object.assign(sheetOrders,       m.sheetOrders);
-      if(m.routeOrders)       Object.assign(routeOrders,       m.routeOrders);
-      if(m.routeStopTimes)    Object.assign(routeStopTimes,    m.routeStopTimes);
-      if(m.routeTimeConfirmed)Object.assign(routeTimeConfirmed,m.routeTimeConfirmed);
-      if(m.routeAvailSlots)   Object.assign(routeAvailSlots,   m.routeAvailSlots);
-      if(m.routeGuide)        Object.assign(routeGuide,        m.routeGuide);
-      if(m.deletedIds)        Object.assign(deletedIds,        m.deletedIds);
+      // Full replace (not merge) so deleted keys propagate from other browsers
+      if(m.sheetOrders)       { Object.keys(sheetOrders).forEach(k=>delete sheetOrders[k]);       Object.assign(sheetOrders,       m.sheetOrders); }
+      if(m.routeOrders)       { Object.keys(routeOrders).forEach(k=>delete routeOrders[k]);       Object.assign(routeOrders,       m.routeOrders); }
+      if(m.routeStopTimes)    { Object.keys(routeStopTimes).forEach(k=>delete routeStopTimes[k]); Object.assign(routeStopTimes,    m.routeStopTimes); }
+      if(m.routeTimeConfirmed){ Object.keys(routeTimeConfirmed).forEach(k=>delete routeTimeConfirmed[k]); Object.assign(routeTimeConfirmed,m.routeTimeConfirmed); }
+      if(m.routeAvailSlots)   { Object.keys(routeAvailSlots).forEach(k=>delete routeAvailSlots[k]);Object.assign(routeAvailSlots,   m.routeAvailSlots); }
+      if(m.routeGuide)        { Object.keys(routeGuide).forEach(k=>delete routeGuide[k]);         Object.assign(routeGuide,        m.routeGuide); }
+      if(m.deletedIds)        Object.assign(deletedIds, m.deletedIds);
       setSyncStatus('online');
       renderActivePage();
     });
