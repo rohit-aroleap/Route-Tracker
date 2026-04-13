@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.049</title>
+<title>BLR Tracker · v1.050</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -205,7 +205,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.049</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.050</span></div>
     </div>
 
     <div class="stat-box">
@@ -2024,6 +2024,7 @@ function renderRouteStops(dayNum){
         <div style="font-size:11px;font-weight:500;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)">${r.name||'—'}</div>
         ${confirmedTime?`<span style="font-size:9px;font-family:var(--mono);font-weight:600;color:#2E7D32;background:#E8F5E9;padding:1px 4px;border-radius:6px;flex-shrink:0">${fmtTime(confirmedTime)}</span>`:''}
         ${!hasCoords?`<span style="font-size:9px;color:#92400e;background:#FEF3C7;padding:0 3px;border-radius:5px;flex-shrink:0" title="Pincode not mapped">!</span>`:''}
+        <button onmousedown="event.stopPropagation()" onclick="copyStopDetails(${r.id})" title="Copy details" style="flex-shrink:0;width:18px;height:18px;border:none;background:transparent;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;border-radius:4px;opacity:0.4;transition:opacity 0.15s" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.4'"><span style="font-size:11px">📋</span></button>
       </div>
       <div style="display:flex;align-items:center;gap:3px;margin-top:3px;flex-wrap:wrap">
         ${pillsHtml}
@@ -2080,6 +2081,35 @@ function renderRouteStops(dayNum){
         scheduleSave();
       }
     });
+  });
+}
+
+function copyStopDetails(id){
+  const r=db.find(x=>x.id===id);
+  if(!r){ toast('Entry not found'); return; }
+  const time=routeStopTimes[r.id];
+  const timeStr=time?fmtTime(time):'';
+  const status=normalizeStatus(r.status);
+  const statusLabel=STATUS_OPTIONS.find(o=>o.value===status);
+  const statusStr=statusLabel?statusLabel.label:'';
+
+  let lines=[];
+  lines.push('Client name - '+(r.name||'—'));
+  lines.push('Contact No: '+(r.phone||'—'));
+  if(r.area||r.pin) lines.push('Address: '+(r.area||'')+(r.area&&r.pin?', ':'')+( r.pin?'Bangalore '+r.pin:''));
+  if(r.lat&&r.lng) lines.push('Location: https://maps.google.com/?q='+r.lat+','+r.lng);
+  if(timeStr) lines.push('Time: '+timeStr);
+  if(statusStr) lines.push('Status: '+statusStr);
+  if(r.notes) lines.push('Notes: '+r.notes);
+
+  const text=lines.join('\n');
+  navigator.clipboard.writeText(text).then(()=>{
+    toast('Copied details for '+(r.name||r.phone||'entry'));
+  }).catch(()=>{
+    const ta=document.createElement('textarea'); ta.value=text;
+    ta.style.cssText='position:fixed;left:-9999px'; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    toast('Copied details for '+(r.name||r.phone||'entry'));
   });
 }
 
