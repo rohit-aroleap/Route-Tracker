@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.043</title>
+<title>BLR Tracker · v1.044</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -203,7 +203,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.043</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.044</span></div>
     </div>
 
     <div class="stat-box">
@@ -315,6 +315,11 @@ tr:hover td{background:rgba(0,0,0,0.015)}
           <div class="form-group">
             <label>Pincode</label>
             <input type="text" id="f-pin" maxlength="6" placeholder="e.g. 560064" oninput="autoDayFromPin()"/>
+          </div>
+          <div class="form-group">
+            <label>📍 Google Maps link <span style="font-weight:400;color:var(--ink3)">(optional)</span></label>
+            <input type="text" id="f-location" placeholder="Paste Maps URL or lat,lng" oninput="previewLocation()"/>
+            <div id="f-loc-hint" style="font-size:10px;font-family:var(--mono);color:var(--ink3);margin-top:2px"></div>
           </div>
           <div class="form-group">
             <label>Installation date</label>
@@ -892,6 +897,38 @@ function todayDayNum(){
   if(future.length) return future[0].day;
   return DAY_PLAN[DAY_PLAN.length-1].day; // all past → last day
 }
+/* Return [lat,lng] for an entry: prefer entry.lat/lng (Google Maps), fallback to PIN_COORDS */
+function getCoords(r){
+  if(r && typeof r.lat==='number' && typeof r.lng==='number') return [r.lat, r.lng];
+  if(r && r.pin && PIN_COORDS[r.pin]) return PIN_COORDS[r.pin];
+  return null;
+}
+
+/* Parse Google Maps URL or raw "lat,lng" into {lat, lng} or null */
+function parseLocation(str){
+  if(!str) return null;
+  str=str.trim();
+  // Raw coordinates: "12.9716, 77.5946" or "12.9716,77.5946"
+  const rawMatch=str.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
+  if(rawMatch){ const lat=parseFloat(rawMatch[1]),lng=parseFloat(rawMatch[2]); if(lat>=-90&&lat<=90&&lng>=-180&&lng<=180) return {lat,lng}; }
+  // Google Maps URLs: various formats
+  // https://maps.google.com/?q=12.9716,77.5946
+  // https://www.google.com/maps?q=12.9716,77.5946
+  // https://www.google.com/maps/@12.9716,77.5946,17z
+  // https://maps.app.goo.gl/... (can't resolve short URLs without API)
+  // https://www.google.com/maps/place/.../@12.9716,77.5946,...
+  const patterns=[
+    /[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/,
+    /@(-?\d+\.?\d*),(-?\d+\.?\d*)/,
+    /\/(-?\d+\.?\d*),(-?\d+\.?\d*)/
+  ];
+  for(const p of patterns){
+    const m=str.match(p);
+    if(m){ const lat=parseFloat(m[1]),lng=parseFloat(m[2]); if(lat>=-90&&lat<=90&&lng>=-180&&lng<=180) return {lat,lng}; }
+  }
+  return null;
+}
+
 function zoneClass(z){return 'zb-'+(z||'').toLowerCase().replace(/[^a-z]/g,'');}
 function zoneName(pin){
   const p=PLAN_COORDS.find(x=>x.pin===pin);return p?p.zone:'—';
@@ -1319,11 +1356,21 @@ function autoDayFromDate(){
   }
 }
 
+function previewLocation(){
+  const val=document.getElementById('f-location').value;
+  const hint=document.getElementById('f-loc-hint');
+  const parsed=parseLocation(val);
+  if(val.trim() && parsed) hint.innerHTML=`<span style="color:#2E7D32">✓ ${parsed.lat.toFixed(5)}, ${parsed.lng.toFixed(5)}</span>`;
+  else if(val.trim()) hint.innerHTML=`<span style="color:#B45309">Could not parse coordinates</span>`;
+  else hint.textContent='';
+}
+
 function addInstallation(){
   const name=document.getElementById('f-name').value.trim();
   const phone=document.getElementById('f-phone').value.trim();
   const area=document.getElementById('f-area').value.trim();
   const pin=document.getElementById('f-pin').value.trim();
+  const locInput=document.getElementById('f-location').value.trim();
   const dateVal=document.getElementById('f-date').value;
   let day=document.getElementById('f-day').value;
   const status=document.getElementById('f-status').value;
@@ -1344,6 +1391,9 @@ function addInstallation(){
     : (di?di.dateLabel:'');
   const entry={id:nextId++,name,phone,area,pin,
     date:dateDisplay,day:dayNum,status,zone,notes};
+  // Parse Google Maps location if provided
+  const loc=parseLocation(locInput);
+  if(loc){ entry.lat=loc.lat; entry.lng=loc.lng; }
   db.unshift(entry);
   _dirtyRows.add(entry.id);
   updateStats();clearForm();scheduleSave();toast('Added: '+(name||phone));
@@ -1351,11 +1401,12 @@ function addInstallation(){
 }
 
 function clearForm(){
-  ['f-name','f-phone','f-area','f-pin','f-notes'].forEach(id=>document.getElementById(id).value='');
+  ['f-name','f-phone','f-area','f-pin','f-notes','f-location'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('f-date').value='';
   document.getElementById('f-day').value='';
   document.getElementById('f-status').value='paid';
   document.getElementById('f-hint').textContent='';
+  document.getElementById('f-loc-hint').textContent='';
 }
 
 /* ─── BULK IMPORT ─── */
@@ -1452,8 +1503,8 @@ function runSuggest(){
     const nearest=planPins[planDists.indexOf(planMin)];
 
     // Actual db entries for this calendar date
-    const dbEntries=db.filter(r=>getEntryCalDate(r)===calDay && PIN_COORDS[r.pin]);
-    const dbDists=dbEntries.map(r=>haversine(lat,lng,PIN_COORDS[r.pin][0],PIN_COORDS[r.pin][1]));
+    const dbEntries=db.filter(r=>getEntryCalDate(r)===calDay && getCoords(r));
+    const dbDists=dbEntries.map(r=>{const c=getCoords(r);return haversine(lat,lng,c[0],c[1]);});
     const dbAvg=dbDists.length?dbDists.reduce((a,b)=>a+b,0)/dbDists.length:null;
     const dbMin=dbDists.length?Math.min(...dbDists):null;
 
@@ -1549,7 +1600,7 @@ function initSugMapView(){
   const today=todayCalDay();
   // Filter to future/today only, group by pincode to handle overlaps
   const eligible=db.filter(r=>{
-    if(!PIN_COORDS[r.pin]) return false;
+    if(!getCoords(r)) return false;
     const cd=getEntryCalDate(r);
     return cd===null || cd>=today;
   });
@@ -1913,7 +1964,7 @@ function renderRouteStops(dayNum){
   // Card HTML for a single stop
   function cardHtml(r){
     const globalIdx=allStops.indexOf(r);
-    const hasCoords=!!PIN_COORDS[r.pin];
+    const hasCoords=!!getCoords(r);
     const confirmedTime=routeStopTimes[r.id]||'';
     const availList=routeAvailSlots[r.id]||[];
     const gAssigned=routeGuide[r.id];
@@ -2027,7 +2078,7 @@ function drawRouteMap(dayNum){
 
   const allPoints=[];
   stops.forEach((r,i)=>{
-    const coords=PIN_COORDS[r.pin]; if(!coords) return;
+    const coords=getCoords(r); if(!coords) return;
     const [lat,lng]=coords;
     allPoints.push([lat,lng]);
     const mc=markerColor(r);
@@ -2056,9 +2107,9 @@ function drawRouteMap(dayNum){
 
   // Draw separate polyline per guide (+ one for unassigned)
   [[1,'solid'],[2,'solid'],[0,'dash']].forEach(([gn,style])=>{
-    const gstops=guideGroups[gn].filter(({r})=>PIN_COORDS[r.pin]);
+    const gstops=guideGroups[gn].filter(({r})=>getCoords(r));
     if(gstops.length<2) return;
-    const pts=gstops.map(({r})=>PIN_COORDS[r.pin]);
+    const pts=gstops.map(({r})=>getCoords(r));
     const col=gn?GUIDE_COLORS[gn].color:dp.color;
     const poly=L.polyline(pts,{color:col,weight:3,opacity:0.85,dashArray:gn?null:'6,5'}).addTo(routeMap);
     if(!routePolyline) routePolyline=poly; else { if(!window._extraPolylines) window._extraPolylines=[]; window._extraPolylines.push(poly); }
@@ -2071,7 +2122,7 @@ function drawRouteMap(dayNum){
   }
 
   // Unmapped overlay
-  const noCoordStops=stops.filter(r=>!PIN_COORDS[r.pin]);
+  const noCoordStops=stops.filter(r=>!getCoords(r));
   let overlayEl=document.getElementById('route-map-unmapped');
   if(!overlayEl){
     overlayEl=document.createElement('div');
@@ -2095,8 +2146,8 @@ function optimiseRoute(dayNum){
   dayNum=dayNum||window.routeActiveDay||[...(window.routeSelectedDays||new Set())][0];
   if(!dayNum) return;
   const stops=db.filter(r=>getEntryCalDate(r)===dayNum);
-  const withCoords=stops.filter(r=>PIN_COORDS[r.pin]);
-  const noCoords=stops.filter(r=>!PIN_COORDS[r.pin]);
+  const withCoords=stops.filter(r=>getCoords(r));
+  const noCoords=stops.filter(r=>!getCoords(r));
   if(withCoords.length<2){ toast('Not enough mapped stops to sort'); return; }
 
   // Greedy nearest-neighbour from first stop
@@ -2107,7 +2158,7 @@ function optimiseRoute(dayNum){
     const [la1,ln1]=PIN_COORDS[last.pin];
     let best=0, bestDist=Infinity;
     remaining.forEach((r,i)=>{
-      const [la2,ln2]=PIN_COORDS[r.pin];
+      const [la2,ln2]=getCoords(r);
       const d=haversine(la1,ln1,la2,ln2);
       if(d<bestDist){bestDist=d;best=i;}
     });
@@ -2235,7 +2286,7 @@ function drawMultiRouteMap(selectedDays){
     const stops=getRouteStops(dayNum);
     const pts=[];
     stops.forEach((r,i)=>{
-      const coords=PIN_COORDS[r.pin]; if(!coords) return;
+      const coords=getCoords(r); if(!coords) return;
       const [lat,lng]=coords; pts.push([lat,lng]); allPoints.push([lat,lng]);
       const icon=L.divIcon({
         html:`<div style="width:28px;height:28px;border-radius:50%;background:${dp.color};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);font-family:sans-serif">${i+1}</div>`,
@@ -2411,6 +2462,7 @@ function sheetRow(r){
     <td><input class="sheet-input" value="${escAttr(r.phone)}" placeholder="Phone" style="font-family:var(--mono)" onchange="updateEntry(${r.id},'phone',this.value)"/></td>
     <td><input class="sheet-input" value="${escAttr(r.area)}" placeholder="Area / locality" onchange="updateEntry(${r.id},'area',this.value)"/></td>
     <td><input class="sheet-input" value="${escAttr(r.pin)}" placeholder="560xxx" maxlength="6" style="font-family:var(--mono);width:80px" onchange="updateEntry(${r.id},'pin',this.value)"/></td>
+    <td><input class="sheet-input" value="${r.lat&&r.lng?r.lat.toFixed(5)+','+r.lng.toFixed(5):''}" placeholder="Maps link / lat,lng" style="font-family:var(--mono);width:120px;font-size:10px" onchange="updateEntryLocation(${r.id},this.value)"/>${r.lat&&r.lng?`<span style="font-size:8px;color:#2E7D32">📍</span>`:''}</td>
     <td><select class="sheet-input" onchange="updateEntry(${r.id},'status',this.value)">${statusOpts}</select></td>
     <td><input class="sheet-input" value="${escAttr(r.notes||'')}" placeholder="Notes…" onchange="updateEntry(${r.id},'notes',this.value)"/></td>
     <td><button class="delete-btn" onclick="deleteRow(${r.id});renderSheet()">✕</button></td>
@@ -2427,7 +2479,7 @@ function renderSheet(){
       <th style="width:22px"></th>
       <th style="width:130px">Name</th><th style="width:120px">Phone</th>
       <th>Area / Address</th><th style="width:80px">Pincode</th>
-      <th style="width:110px">Status</th>
+      <th style="width:120px">📍 Location</th><th style="width:110px">Status</th>
       <th style="width:180px">Notes</th><th style="width:32px"></th>
     </tr></thead>`;
 
@@ -2528,6 +2580,20 @@ function updateEntry(id,field,value){
   _dirtyRows.add(id);  // mark only this row dirty
   updateStats();
   scheduleSave();
+}
+
+function updateEntryLocation(id,value){
+  const row=db.find(r=>r.id===id);
+  if(!row) return;
+  if(!value.trim()){ delete row.lat; delete row.lng; }
+  else {
+    const loc=parseLocation(value);
+    if(loc){ row.lat=loc.lat; row.lng=loc.lng; }
+    else { toast('Could not parse location'); return; }
+  }
+  _dirtyRows.add(id);
+  scheduleSave();
+  renderSheet();
 }
 
 function addSheetRow(calDate){
