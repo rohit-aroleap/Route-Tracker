@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.040</title>
+<title>BLR Tracker · v1.041</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -134,8 +134,10 @@ tr:hover td{background:rgba(0,0,0,0.015)}
 .search-bar input:focus{border-color:var(--accent)}
 
 /* ── Toast ── */
-#toast{position:fixed;bottom:24px;right:24px;background:var(--ink);color:#fff;font-size:13px;padding:10px 18px;border-radius:var(--r2);opacity:0;transform:translateY(6px);transition:all 0.25s;pointer-events:none;z-index:999;font-family:var(--mono)}
-#toast.show{opacity:1;transform:translateY(0)}
+#toast{position:fixed;bottom:24px;right:24px;background:var(--ink);color:#fff;font-size:13px;padding:10px 18px;border-radius:var(--r2);opacity:0;transform:translateY(6px);transition:all 0.25s;pointer-events:none;z-index:999;font-family:var(--mono);display:flex;align-items:center;gap:12px}
+#toast.show{opacity:1;transform:translateY(0);pointer-events:auto}
+#toast .undo-btn{background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.3);padding:3px 10px;border-radius:var(--r);font-size:12px;font-family:var(--mono);cursor:pointer;font-weight:600;white-space:nowrap}
+#toast .undo-btn:hover{background:rgba(255,255,255,0.35)}
 
 /* ── Zone badge ── */
 .zone-badge{font-size:10px;font-family:var(--mono);padding:1px 7px;border-radius:10px;display:inline-block;text-transform:uppercase;letter-spacing:0.05em}
@@ -201,7 +203,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.040</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.041</span></div>
     </div>
 
     <div class="stat-box">
@@ -913,10 +915,19 @@ function statusChip(s){
   if(s==='future')    return '<span class="status-chip sc-scheduled">Scheduled</span>';
   return `<span class="status-chip sc-scheduled">${s||'—'}</span>`;
 }
-function toast(msg){
+let _toastTimer=null;
+function toast(msg, undoFn){
   const t=document.getElementById('toast');
-  t.textContent=msg;t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2400);
+  clearTimeout(_toastTimer);
+  if(undoFn){
+    t.innerHTML=`<span>${msg}</span><button class="undo-btn" id="undo-action">Undo</button>`;
+    document.getElementById('undo-action').onclick=function(){ undoFn(); t.classList.remove('show'); };
+    _toastTimer=setTimeout(()=>t.classList.remove('show'),5000);
+  } else {
+    t.innerHTML=`<span>${msg}</span>`;
+    _toastTimer=setTimeout(()=>t.classList.remove('show'),2400);
+  }
+  t.classList.add('show');
 }
 function getInferredDay(pin){
   const p=PLAN_COORDS.find(x=>x.pin===pin);
@@ -1129,7 +1140,8 @@ function renderCalendar(){
       }
     }
 
-    html+=`<div onclick="selectDay(${d})" style="border:${border};min-height:70px;cursor:${isInstall?'pointer':'default'};background:${cellBg};transition:background 0.15s;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+    const hasAnyEntry=installs.length>0;
+    html+=`<div onclick="selectDay(${d})" style="border:${border};min-height:70px;cursor:${hasAnyEntry||isInstall?'pointer':'default'};background:${cellBg};transition:background 0.15s;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;">
       <div style="position:absolute;top:7px;left:8px;display:flex;align-items:center;gap:4px">
         <span style="font-size:12px;color:${isWeekend?'var(--ink3)':'var(--ink)'}">${d}</span>
         ${isToday?`<span style="font-size:9px;font-family:var(--mono);background:var(--ink);color:#fff;padding:1px 5px;border-radius:8px">today</span>`:''}
@@ -1164,12 +1176,23 @@ function renderCalendar(){
 }
 
 function selectDay(d){
-  const installDateMap={};
-  DAY_PLAN.forEach(dp=>{ installDateMap[parseInt(dp.date)]=dp; });
-  if(!installDateMap[d]) return;
-  selectedDay=(selectedDay===d)?null:d;
-  renderCalendar();
-  if(selectedDay) setTimeout(()=>document.getElementById('cal-detail').scrollIntoView({behavior:'smooth',block:'nearest'}),50);
+  // Check if this date has any entries at all
+  const hasEntries=db.some(r=>getEntryCalDate(r)===d);
+  if(!hasEntries){
+    // Still handle DAY_PLAN detail view for days with plans but no entries yet
+    const installDateMap={};
+    DAY_PLAN.forEach(dp=>{ installDateMap[parseInt(dp.date)]=dp; });
+    if(!installDateMap[d]) return;
+    selectedDay=(selectedDay===d)?null:d;
+    renderCalendar();
+    if(selectedDay) setTimeout(()=>document.getElementById('cal-detail').scrollIntoView({behavior:'smooth',block:'nearest'}),50);
+    return;
+  }
+  // Jump to Route Planner for this day
+  window.routeSelectedDays=new Set([d]);
+  window.routeActiveDay=d;
+  try{ localStorage.setItem('blr_route_day',d); }catch(e){}
+  showPage('route');
 }
 
 function renderDayDetail(d){
@@ -1220,9 +1243,12 @@ function renderLog(){
   const empty=document.getElementById('log-empty');
   if(!rows.length){tb.innerHTML='';empty.style.display='block';return;}
   empty.style.display='none';
-  tb.innerHTML=rows.map((r,i)=>`<tr class="fade-in">
+  tb.innerHTML=rows.map((r,i)=>{
+    const editBy=r._lastModifiedBy?r._lastModifiedBy.split('@')[0]:'';
+    const editInfo=editBy?`<div style="font-size:9px;color:var(--ink3);font-family:var(--mono);margin-top:1px" title="${r._lastModifiedBy||''} · ${r._lastModifiedAt?new Date(r._lastModifiedAt).toLocaleString('en-IN'):''}">✎ ${editBy}</div>`:'';
+    return `<tr class="fade-in">
     <td style="color:var(--ink3);font-family:var(--mono);font-size:11px">${String(r.id).padStart(2,'0')}</td>
-    <td style="font-weight:500">${r.name||'—'}</td>
+    <td><div style="font-weight:500">${r.name||'—'}</div>${editInfo}</td>
     <td style="font-family:var(--mono);font-size:12px">${r.phone||'—'}</td>
     <td>${r.area||'—'}</td>
     <td><span class="pin-chip">${r.pin||'—'}</span></td>
@@ -1231,14 +1257,37 @@ function renderLog(){
     <td style="font-size:12px;color:var(--ink2)">${r.date||'—'}</td>
     <td>${statusChip(r.status||'confirmed')}</td>
     <td><button class="delete-btn" onclick="deleteRow(${r.id})" title="Remove">✕</button></td>
-  </tr>`).join('');
+  </tr>`;
+  }).join('');
 }
 
+let _pendingDelete=null; // holds {row, timer} for undo
 function deleteRow(id){
+  // Cancel any previous pending delete (commit it)
+  if(_pendingDelete){ _commitDelete(_pendingDelete); }
+  const row=db.find(r=>r.id===id);
+  if(!row) return;
+  // Remove from UI immediately
   db=db.filter(r=>r.id!==id);
-  deleteRowFromFirebase(id);  // immediately remove from Firebase
-  _dirtyRows.delete(id);      // no need to push a deleted row
-  renderLog();updateStats();scheduleSave();toast('Entry removed');
+  _dirtyRows.delete(id);
+  renderLog();updateStats();renderActivePage();
+  // Set up undo window (5 seconds)
+  const pending={row:Object.assign({},row), timer:null};
+  pending.timer=setTimeout(()=>{ _commitDelete(pending); _pendingDelete=null; },5000);
+  _pendingDelete=pending;
+  toast('Entry removed', function undoDelete(){
+    clearTimeout(pending.timer);
+    _pendingDelete=null;
+    db.push(row);
+    _dirtyRows.add(row.id);
+    renderLog();updateStats();scheduleSave();renderActivePage();
+    toast('Restored: '+(row.name||row.phone||'entry'));
+  });
+}
+function _commitDelete(pending){
+  clearTimeout(pending.timer);
+  deleteRowFromFirebase(pending.row.id);
+  scheduleSave();
 }
 
 /* ─── ADD INSTALLATION ─── */
@@ -2339,9 +2388,10 @@ function getEntryCalDate(r){
 function sheetRow(r){
   const statusOpts=STATUS_OPTIONS.map(o=>
     `<option value="${o.value}"${normalizeStatus(r.status)===o.value?' selected':''}>${o.label}</option>`).join('');
+  const editBy=r._lastModifiedBy?r._lastModifiedBy.split('@')[0]:'';
   return `<tr class="sheet-data-row" data-id="${r.id}" style="background:#FFFFFF">
     <td class="drag-handle" style="cursor:grab;color:var(--ink3);text-align:center;padding:4px 8px;user-select:none;font-size:14px">⠿</td>
-    <td><input class="sheet-input" value="${escAttr(r.name)}" placeholder="Name" onchange="updateEntry(${r.id},'name',this.value)"/></td>
+    <td><input class="sheet-input" value="${escAttr(r.name)}" placeholder="Name" onchange="updateEntry(${r.id},'name',this.value)"/>${editBy?`<div style="font-size:8px;color:var(--ink3);font-family:var(--mono);padding:0 6px" title="${r._lastModifiedBy||''}">✎ ${editBy}</div>`:''}</td>
     <td><input class="sheet-input" value="${escAttr(r.phone)}" placeholder="Phone" style="font-family:var(--mono)" onchange="updateEntry(${r.id},'phone',this.value)"/></td>
     <td><input class="sheet-input" value="${escAttr(r.area)}" placeholder="Area / locality" onchange="updateEntry(${r.id},'area',this.value)"/></td>
     <td><input class="sheet-input" value="${escAttr(r.pin)}" placeholder="560xxx" maxlength="6" style="font-family:var(--mono);width:80px" onchange="updateEntry(${r.id},'pin',this.value)"/></td>
