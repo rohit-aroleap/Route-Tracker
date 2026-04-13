@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.038</title>
+<title>BLR Tracker · v1.039</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -173,7 +173,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.038</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.039</span></div>
     </div>
 
     <div class="stat-box">
@@ -462,6 +462,17 @@ let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
 
+function renderActivePage(){
+  const activePage=document.querySelector('.page.active');
+  if(!activePage) return;
+  switch(activePage.id){
+    case 'schedule': if(typeof renderLog==='function') renderLog(); break;
+    case 'calendar': if(typeof renderCalendar==='function') renderCalendar(); break;
+    case 'route':    if(typeof renderRouteView==='function') renderRouteView(); break;
+    case 'sheet':    if(typeof renderSheet==='function') renderSheet(); break;
+  }
+}
+
 function initFirebase(){
   if(typeof firebase === 'undefined'){ setSyncStatus('offline'); return; }
   try{
@@ -484,14 +495,14 @@ function initFirebase(){
       const r = snap.val(); if(!r || !r.id) return;
       if(_ignoreRowIds.has(r.id)){ _ignoreRowIds.delete(r.id); return; }
       const idx = db.findIndex(x=>x.id===r.id);
-      if(idx<0){ db.push(r); updateStats(); renderLog(); setSyncStatus('online'); }
+      if(idx<0){ db.push(r); updateStats(); renderActivePage(); setSyncStatus('online'); }
     });
     rowsRef.on('child_changed', snap => {
       const r = snap.val(); if(!r || !r.id) return;
       if(_ignoreRowIds.has(r.id)){ _ignoreRowIds.delete(r.id); return; }
       const idx = db.findIndex(x=>x.id===r.id);
       if(idx>=0) db[idx]=r; else db.push(r);
-      updateStats(); renderLog(); setSyncStatus('online');
+      updateStats(); renderActivePage(); setSyncStatus('online');
     });
     rowsRef.on('child_removed', snap => {
       const r = snap.val(); if(!r || !r.id) return;
@@ -499,7 +510,7 @@ function initFirebase(){
       const idx=db.findIndex(x=>x.id===r.id);
       if(idx>=0) db.splice(idx,1);
       deletedIds[r.id]=true; // remember this was intentionally deleted
-      updateStats(); renderLog(); setSyncStatus('online');
+      updateStats(); renderActivePage(); setSyncStatus('online');
       // Keep localStorage in sync so stale data never gets re-pushed
       try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({db,nextId,sheetOrders,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,routeGuide,deletedIds,savedAt:new Date().toISOString()})); }catch(e){}
     });
@@ -566,11 +577,7 @@ function initFirebase(){
       if(m.routeGuide)        Object.assign(routeGuide,        m.routeGuide);
       if(m.deletedIds)        Object.assign(deletedIds,        m.deletedIds);
       setSyncStatus('online');
-      // Re-render route planner live if it's the active page
-      const activePage=document.querySelector('.page.active');
-      if(activePage && activePage.id==='route'){
-        if(typeof renderRouteView==='function') renderRouteView();
-      }
+      renderActivePage();
     });
 
     // ── Connection indicator ───────────────────────────────────────────────
