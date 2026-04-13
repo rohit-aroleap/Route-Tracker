@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.050</title>
+<title>BLR Tracker · v1.051</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -205,7 +205,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.050</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.051</span></div>
     </div>
 
     <div class="stat-box">
@@ -2094,13 +2094,14 @@ function copyStopDetails(id){
   const statusStr=statusLabel?statusLabel.label:'';
 
   let lines=[];
-  lines.push('Client name - '+(r.name||'—'));
-  lines.push('Contact No: '+(r.phone||'—'));
-  if(r.area||r.pin) lines.push('Address: '+(r.area||'')+(r.area&&r.pin?', ':'')+( r.pin?'Bangalore '+r.pin:''));
-  if(r.lat&&r.lng) lines.push('Location: https://maps.google.com/?q='+r.lat+','+r.lng);
-  if(timeStr) lines.push('Time: '+timeStr);
-  if(statusStr) lines.push('Status: '+statusStr);
-  if(r.notes) lines.push('Notes: '+r.notes);
+  lines.push('👤 *'+(r.name||'—')+'*');
+  lines.push('📞 '+(r.phone||'—'));
+  if(r.area||r.pin) lines.push('📍 '+(r.area||'')+(r.area&&r.pin?', ':'')+( r.pin?'Bangalore '+r.pin:''));
+  else if(r.pin) lines.push('📍 Pincode: '+r.pin);
+  if(r.lat&&r.lng) lines.push('🗺 https://maps.google.com/?q='+r.lat+','+r.lng);
+  if(timeStr) lines.push('🕐 '+timeStr);
+  if(statusStr) lines.push('📋 '+statusStr);
+  if(r.notes) lines.push('📝 '+r.notes);
 
   const text=lines.join('\n');
   navigator.clipboard.writeText(text).then(()=>{
