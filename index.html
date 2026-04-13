@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.025</title>
+<title>BLR Tracker · v1.026</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.025</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.026</span></div>
     </div>
 
     <div class="stat-box">
@@ -966,7 +966,7 @@ function renderCalendar(){
     const isInstall=!!dp;
     const isToday=isThisMonth&&d===todayDate;
     const isSel=selectedDay===d;
-    const installs=dp?db.filter(r=>getEntryCalDate(r)===d):[];
+    const installs=db.filter(r=>getEntryCalDate(r)===d);
     const basePins=[];
     const dow2=(firstDow+d-1)%7;
     const isWeekend=dow2===0||dow2===6;
@@ -984,7 +984,7 @@ function renderCalendar(){
     if(isToday&&!isSel) border=`1.5px solid var(--ink2)`;
 
     // Per-status counts for this day (only active filters)
-    const dayCounts=isInstall?CAL_STATUSES.filter(s=>calStatusFilter.has(s.value)).map(s=>({
+    const dayCounts=installs.length>0?CAL_STATUSES.filter(s=>calStatusFilter.has(s.value)).map(s=>({
       ...s, count:installs.filter(r=>normalizeStatus(r.status)===s.value).length
     })).filter(o=>o.count>0):[];
 
