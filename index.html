@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.023</title>
+<title>BLR Tracker · v1.024</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.023</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.024</span></div>
     </div>
 
     <div class="stat-box">
@@ -503,23 +503,14 @@ function initFirebase(){
       if(allRows && typeof allRows === 'object' && Object.keys(allRows).length > 0){
         // Firebase has data — merge it in (Firebase wins over stale localStorage)
         const fbRows = Object.values(allRows).filter(r=>r&&r.id);
-        fbRows.forEach(r => {
-          const idx = db.findIndex(x=>x.id===r.id);
-          if(idx >= 0) db[idx] = r; else db.push(r);
-        });
-        // Remove rows that exist locally but were deleted in Firebase (only if fbRows is non-empty)
-        if(fbRows.length > 0){
-          const fbIds = new Set(fbRows.map(r=>r.id));
-          db = db.filter(r => fbIds.has(r.id));
-        }
+        // Rebuild db entirely from Firebase (source of truth) — avoids any local duplicates
+        db.length = 0;
+        fbRows.forEach(r => db.push(r));
         nextId = Math.max(nextId, ...fbRows.map(r=>r.id+1), 1);
-        // Push any historical entries not yet in Firebase
+        // Push any historical entries not yet in Firebase (child_added will add them to db)
         const fbIdSet = new Set(fbRows.map(r=>r.id));
         HISTORICAL_ENTRIES.forEach(r=>{
-          if(!fbIdSet.has(r.id)){
-            rowsRef.child(String(r.id)).set(r);
-            db.push(r);
-          }
+          if(!fbIdSet.has(r.id)) rowsRef.child(String(r.id)).set(r);
         });
         updateStats(); renderLog(); setSyncStatus('online');
         try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({db,nextId,sheetOrders,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,routeGuide,savedAt:new Date().toISOString()})); }catch(e){}
