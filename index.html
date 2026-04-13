@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.035</title>
+<title>BLR Tracker · v1.036</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -173,7 +173,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.035</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.036</span></div>
     </div>
 
     <div class="stat-box">
@@ -215,7 +215,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
     <!-- Schedule Page -->
     <div class="page active" id="page-schedule">
       <div class="page-title">Schedule Overview</div>
-      <div class="page-sub">April 2025 — installation days highlighted</div>
+      <div class="page-sub">April 2026 — installation days highlighted</div>
       <div id="cal-wrap"></div>
       <div id="cal-detail" style="margin-top:20px"></div>
     </div>
@@ -934,7 +934,7 @@ function renderCalendar(){
   const wrap=document.getElementById('cal-wrap');
   if(!wrap) return;
 
-  const year=2025, month=3; // April 2025 (0-indexed)
+  const year=2026, month=3; // April 2026 (0-indexed)
   const daysInMonth=30;
   const firstDow=new Date(year,month,1).getDay(); // 0=Sun
   const today=new Date();
@@ -972,7 +972,7 @@ function renderCalendar(){
   const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   html+=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden">
     <div style="background:var(--ink);padding:14px 18px;display:flex;align-items:center;justify-content:space-between">
-      <span style="font-family:var(--serif);font-size:18px;color:#fff;font-weight:300;letter-spacing:-0.01em">April 2025</span>
+      <span style="font-family:var(--serif);font-size:18px;color:#fff;font-weight:300;letter-spacing:-0.01em">April 2026</span>
       <span style="font-family:var(--mono);font-size:11px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.06em">${totalFiltered} ${allSelected?'total':calStatusFilter.size===1?[...calStatusFilter][0]:'filtered'}</span>
     </div>
     <div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border2)">
@@ -1289,7 +1289,7 @@ function runSuggest(){
   const dbCalDates=[...new Set(db.map(r=>getEntryCalDate(r)).filter(d=>d!==null))];
   const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   dbCalDates.filter(d=>!planCalMap[d]).forEach(d=>{
-    const dow=DOW[new Date(2025,3,d).getDay()];
+    const dow=DOW[new Date(2026,3,d).getDay()];
     planCalMap[d]={day:null,date:d+' Apr',dateLabel:`${dow}, ${d} April`,zone:'Other',label:'Other',color:'#6B7280',bg:'#F3F4F6'};
   });
   const tDay=todayCalDay();
@@ -1381,7 +1381,7 @@ function buildCalDpMap(){
   const DOW2=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   db.forEach(r=>{
     const cd=getEntryCalDate(r);
-    if(cd && !m[cd]) m[cd]={date:cd+' Apr',dateLabel:DOW2[new Date(2025,3,cd).getDay()]+', '+cd+' Apr',color:'#6B7280',bg:'#F3F4F6'};
+    if(cd && !m[cd]) m[cd]={date:cd+' Apr',dateLabel:DOW2[new Date(2026,3,cd).getDay()]+', '+cd+' Apr',color:'#6B7280',bg:'#F3F4F6'};
   });
   return m;
 }
@@ -2285,7 +2285,7 @@ function renderSheet(){
       rows=[...ordered,...newEntries];
       sheetOrders[calDay]=rows.map(r=>r.id); // keep clean
     }
-    const dowIdx=new Date(2025,3,calDay).getDay();
+    const dowIdx=new Date(2026,3,calDay).getDay();
     const dowLabel=DOW_LABELS[dowIdx];
     const isWeekend=dowIdx===0||dowIdx===6;
 
