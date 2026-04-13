@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.031</title>
+<title>BLR Tracker · v1.032</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -172,7 +172,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.031</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.032</span></div>
     </div>
 
     <div class="stat-box">
@@ -1521,6 +1521,7 @@ function addFromSuggest(){
 /* ─── ROUTE PLANNER ─── */
 let sheetOrders={}; // calDay -> [ordered entry ids] — persists manual row order in Edit Data
 let routeMap=null, routeMarkers=[], routePolyline=null, routeSortable=null;
+const WORKSHOP_PIN='560023'; // fixed workshop/starting-point marker on route map
 let sugMap=null, sugMapMarkers=[];
 let routeOrders={}; // dayNum -> [ordered list of entries]
 let routeStopTimes={}; // entryId -> "HH:MM"
@@ -1831,6 +1832,20 @@ function renderRouteStops(dayNum){
   });
 }
 
+function addWorkshopMarker(){
+  const coords=PIN_COORDS[WORKSHOP_PIN]; if(!coords||!routeMap) return;
+  const icon=L.divIcon({
+    html:`<div style="display:flex;flex-direction:column;align-items:center;gap:1px">
+      <div style="font-size:22px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.45))">🏠</div>
+      <div style="background:#1e293b;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;white-space:nowrap;font-family:sans-serif;box-shadow:0 1px 3px rgba(0,0,0,0.3)">Workshop</div>
+    </div>`,
+    iconSize:[36,46],iconAnchor:[18,10],className:''
+  });
+  const mk=L.marker(coords,{icon,zIndexOffset:2000}).addTo(routeMap)
+    .bindPopup(`<div style="font-family:sans-serif;font-size:12px;font-weight:600">🏠 Workshop / Start<br><span style="font-family:monospace;color:#555;font-weight:400">${WORKSHOP_PIN}</span></div>`);
+  routeMarkers.push(mk);
+}
+
 function drawRouteMap(dayNum){
   initRouteMap();
   const dp=dayInfo(dayNum);
@@ -1889,6 +1904,8 @@ function drawRouteMap(dayNum){
     const poly=L.polyline(pts,{color:col,weight:3,opacity:0.85,dashArray:gn?null:'6,5'}).addTo(routeMap);
     if(!routePolyline) routePolyline=poly; else { if(!window._extraPolylines) window._extraPolylines=[]; window._extraPolylines.push(poly); }
   });
+
+  addWorkshopMarker();
 
   if(allPoints.length>0){
     routeMap.fitBounds(allPoints.length===1?L.latLngBounds([allPoints[0],allPoints[0]]).pad(0.5):L.latLngBounds(allPoints).pad(0.12));
@@ -2079,6 +2096,7 @@ function drawMultiRouteMap(selectedDays){
       window._extraPolylines.push(poly);
     }
   });
+  addWorkshopMarker();
   if(allPoints.length>0){
     routeMap.fitBounds(allPoints.length===1?L.latLngBounds([allPoints[0],allPoints[0]]).pad(0.5):L.latLngBounds(allPoints).pad(0.1));
   }
