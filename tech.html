@@ -176,7 +176,8 @@ const GUIDE_COLORS = {
 };
 
 const TECH_STATUSES = [
-  {value:'en_route',    label:'En Route',     icon:'🚗', color:'#2563eb', bg:'#DBEAFE'},
+  {value:'not_started', label:'Not Started',  icon:'⏳', color:'#64748b', bg:'#F1F5F9'},
+  {value:'on_my_way',   label:'On My Way',    icon:'🚗', color:'#2563eb', bg:'#DBEAFE'},
   {value:'reached',     label:'Reached',      icon:'📍', color:'#7c3aed', bg:'#EDE9FE'},
   {value:'started',     label:'Started',      icon:'🔧', color:'#b45309', bg:'#FEF3C7'},
   {value:'completed',   label:'Completed',    icon:'✅', color:'#2E7D32', bg:'#E8F5E9'},
@@ -184,7 +185,10 @@ const TECH_STATUSES = [
   {value:'rescheduled', label:'Rescheduled',  icon:'📅', color:'#6A1B9A', bg:'#EDE7F6'},
 ];
 
-function techStatusInfo(s){ return TECH_STATUSES.find(t=>t.value===s)||null; }
+function techStatusInfo(s){
+  if(s==='en_route') s='on_my_way'; // legacy alias
+  return TECH_STATUSES.find(t=>t.value===s)||null;
+}
 
 function normalizeStatus(s){
   if(!s||s==='confirmed'||s==='pending') return 'paid';
@@ -347,8 +351,8 @@ function renderStops(){
 
   // Summary bar
   const done=stops.filter(r=>r.techStatus==='completed').length;
-  const inProgress=stops.filter(r=>r.techStatus&&r.techStatus!=='completed'&&r.techStatus!=='cancelled'&&r.techStatus!=='rescheduled').length;
-  const pending=stops.filter(r=>!r.techStatus).length;
+  const inProgress=stops.filter(r=>r.techStatus&&r.techStatus!=='not_started'&&r.techStatus!=='completed'&&r.techStatus!=='cancelled'&&r.techStatus!=='rescheduled').length;
+  const pending=stops.filter(r=>!r.techStatus||r.techStatus==='not_started').length;
   const cancelled=stops.filter(r=>r.techStatus==='cancelled'||r.techStatus==='rescheduled').length;
   summary.innerHTML=`<div class="summary-bar">
     <div class="summary-stat"><div class="val">${stops.length}</div><div class="lbl">Total</div></div>
@@ -392,21 +396,22 @@ function renderCard(r, num){
 
   // Current status display
   let statusHtml='';
-  if(ts){
-    const info=techStatusInfo(ts);
+  {
+    const effectiveTs=ts||'not_started';
+    const info=techStatusInfo(effectiveTs);
     const lastLog=r.techStatusLog&&r.techStatusLog.length?r.techStatusLog[r.techStatusLog.length-1]:null;
     statusHtml=`<div class="tech-status-row">
       <div class="tech-status-dot" style="background:${info?info.color:'#999'}"></div>
-      <span class="tech-status-label" style="color:${info?info.color:'#999'}">${info?info.icon+' '+info.label:ts}</span>
+      <span class="tech-status-label" style="color:${info?info.color:'#999'}">${info?info.icon+' '+info.label:effectiveTs}</span>
       ${lastLog?`<span class="tech-status-time">${fmtShortTime(lastLog.at)}</span>`:''}
     </div>`;
   }
 
   // Action buttons
   let buttonsHtml='';
-  if(!ts){
-    buttonsHtml=`<button class="status-btn status-btn-primary" onclick="updateTechStatus(${r.id},'en_route')">🚗 En Route</button>`;
-  } else if(ts==='en_route'){
+  if(!ts||ts==='not_started'){
+    buttonsHtml=`<button class="status-btn status-btn-primary" onclick="updateTechStatus(${r.id},'on_my_way')">🚗 On My Way</button>`;
+  } else if(ts==='on_my_way'||ts==='en_route'){
     buttonsHtml=`<button class="status-btn status-btn-primary" onclick="updateTechStatus(${r.id},'reached')">📍 Reached</button>`;
   } else if(ts==='reached'){
     buttonsHtml=`<button class="status-btn status-btn-primary" onclick="updateTechStatus(${r.id},'started')">🔧 Start Installation</button>`;
