@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.058</title>
+<title>BLR Tracker · v1.059</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -206,7 +206,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.058</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.059</span></div>
     </div>
 
     <div class="stat-box">
@@ -500,7 +500,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.058';
+const APP_VERSION = 'v1.059';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -2068,6 +2068,8 @@ function renderRouteStops(dayNum){
     const availList=routeAvailSlots[r.id]||[];
     const gAssigned=routeGuide[r.id];
     const colColor=gAssigned?GUIDE_COLORS[gAssigned].color:'#9CA3AF';
+    const TECH_STATUS_MAP={'en_route':{l:'En Route',c:'#2563eb',i:'🚗'},'reached':{l:'Reached',c:'#7c3aed',i:'📍'},'started':{l:'Started',c:'#b45309',i:'🔧'},'completed':{l:'Done',c:'#2E7D32',i:'✅'},'cancelled':{l:'Cancelled',c:'#B71C1C',i:'❌'},'rescheduled':{l:'Resched',c:'#6A1B9A',i:'📅'}};
+    const techBadge=r.techStatus&&TECH_STATUS_MAP[r.techStatus]?TECH_STATUS_MAP[r.techStatus]:null;
     const pillsHtml=ROUTE_PRESETS.map(p=>{
       const isConf=confirmedTime===p.time;
       const isAvl=availList.includes(p.time);
@@ -2082,6 +2084,7 @@ function renderRouteStops(dayNum){
       <div style="display:flex;align-items:center;gap:4px">
         <div style="width:17px;height:17px;border-radius:50%;background:${colColor};color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${globalIdx+1}</div>
         <div style="font-size:11px;font-weight:500;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)">${r.name||'—'}</div>
+        ${techBadge?`<span style="font-size:8px;font-family:var(--mono);font-weight:600;color:${techBadge.c};padding:1px 4px;border-radius:6px;flex-shrink:0;white-space:nowrap">${techBadge.i}${techBadge.l}</span>`:''}
         ${confirmedTime?`<span style="font-size:9px;font-family:var(--mono);font-weight:600;color:#2E7D32;background:#E8F5E9;padding:1px 4px;border-radius:6px;flex-shrink:0">${fmtTime(confirmedTime)}</span>`:''}
         ${!hasCoords?`<span style="font-size:9px;color:#92400e;background:#FEF3C7;padding:0 3px;border-radius:5px;flex-shrink:0" title="Pincode not mapped">!</span>`:''}
         <button onmousedown="event.stopPropagation()" onclick="copyStopDetails(${r.id})" title="Copy details" style="flex-shrink:0;width:18px;height:18px;border:none;background:transparent;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;border-radius:4px;opacity:0.4;transition:opacity 0.15s" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.4'"><span style="font-size:11px">📋</span></button>
@@ -2105,7 +2108,7 @@ function renderRouteStops(dayNum){
           <span style="font-size:11px;font-weight:700;color:${c.color};font-family:var(--mono);letter-spacing:0.02em">${c.label}</span>
           <span style="font-size:9px;background:${c.color};color:#fff;padding:1px 5px;border-radius:8px;font-weight:600">${c.stops.length}</span>
           <span style="flex:1"></span>
-          ${c.guide?`<button onclick="copyGuideSchedule(${c.guide},${dayNum})" title="Copy schedule for WhatsApp" style="font-size:10px;padding:2px 6px;border-radius:var(--r);border:1px solid ${c.color}33;background:${c.bg};color:${c.color};cursor:pointer;font-family:var(--mono);display:flex;align-items:center;gap:3px;white-space:nowrap"><span style="font-size:12px">📋</span> Copy</button>`:''}
+          ${c.guide?`<button onclick="shareTechLink(${c.guide},${dayNum})" title="Copy tech link for WhatsApp" style="font-size:10px;padding:2px 6px;border-radius:var(--r);border:1px solid ${c.color}33;background:${c.bg};color:${c.color};cursor:pointer;font-family:var(--mono);display:flex;align-items:center;gap:3px;white-space:nowrap"><span style="font-size:12px">📱</span></button><button onclick="copyGuideSchedule(${c.guide},${dayNum})" title="Copy schedule for WhatsApp" style="font-size:10px;padding:2px 6px;border-radius:var(--r);border:1px solid ${c.color}33;background:${c.bg};color:${c.color};cursor:pointer;font-family:var(--mono);display:flex;align-items:center;gap:3px;white-space:nowrap"><span style="font-size:12px">📋</span> Copy</button>`:''}
         </div>
         <div id="${c.id}" style="flex:1;overflow-y:auto;min-height:0">${c.stops.map(r=>cardHtml(r)).join('')}</div>
       </div>`
@@ -2172,6 +2175,20 @@ function copyStopDetails(id){
     ta.style.cssText='position:fixed;left:-9999px'; document.body.appendChild(ta);
     ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
     toast('Copied details for '+(r.name||r.phone||'entry'));
+  });
+}
+
+function shareTechLink(guideNum, dayNum){
+  const guideName=GUIDE_COLORS[guideNum]?GUIDE_COLORS[guideNum].label:'Guide';
+  const base=location.href.replace(/\/[^/]*$/,'/');
+  const url=base+'tech.html?guide='+guideNum+'&date='+dayNum;
+  navigator.clipboard.writeText(url).then(()=>{
+    toast('📱 Tech link copied for '+guideName+' — share on WhatsApp');
+  }).catch(()=>{
+    const ta=document.createElement('textarea'); ta.value=url;
+    ta.style.cssText='position:fixed;left:-9999px'; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    toast('📱 Tech link copied for '+guideName);
   });
 }
 

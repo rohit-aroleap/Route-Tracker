@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Tech View · BLR Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #F5F2EB;
+  --surface: #FEFCF7;
+  --surface2: #EDE9DF;
+  --ink: #1A1714;
+  --ink2: #6B6560;
+  --ink3: #A09A94;
+  --accent: #C84B2F;
+  --accent2: #2F6EC8;
+  --accent3: #2E8B57;
+  --border: rgba(26,23,20,0.12);
+  --border2: rgba(26,23,20,0.07);
+  --mono: 'DM Mono', monospace;
+  --sans: 'DM Sans', sans-serif;
+  --serif: 'Fraunces', serif;
+  --r: 6px;
+  --r2: 10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;min-height:100vh;-webkit-tap-highlight-color:transparent}
+
+/* Loading / Error screens */
+.screen-center{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center}
+.screen-center h1{font-family:var(--serif);font-weight:300;font-size:24px;margin-bottom:8px}
+.screen-center p{color:var(--ink2);font-size:13px;max-width:300px}
+.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:16px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Header */
+.header{position:sticky;top:0;z-index:100;background:var(--ink);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.2)}
+.header-logo{font-family:var(--serif);font-size:16px;font-weight:300}
+.header-logo span{color:var(--accent);font-style:italic}
+.header-meta{flex:1;text-align:right}
+.header-guide{font-family:var(--mono);font-size:12px;font-weight:500}
+.header-date{font-size:11px;color:rgba(255,255,255,0.5);font-family:var(--mono)}
+.sync-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;transition:background 0.3s}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.pulsing{animation:pulse 1.2s ease-in-out infinite}
+
+/* Stop list */
+.stop-list{padding:12px;display:flex;flex-direction:column;gap:12px;padding-bottom:80px}
+
+/* Stop card */
+.stop-card{background:var(--surface);border-radius:var(--r2);border:1px solid var(--border);overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+.stop-header{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border2)}
+.stop-num{width:28px;height:28px;border-radius:50%;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.stop-name{font-weight:500;font-size:15px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stop-time{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--accent3);background:#E8F5E9;padding:2px 8px;border-radius:12px;flex-shrink:0}
+
+.stop-body{padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.stop-actions-row{display:flex;gap:8px}
+.action-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 12px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface2);color:var(--ink);font-family:var(--sans);font-size:13px;font-weight:500;cursor:pointer;text-decoration:none;min-height:44px;transition:all 0.15s}
+.action-btn:active{transform:scale(0.97)}
+.action-btn-phone{background:#E3F2FD;color:#1565C0;border-color:#1565C033}
+.action-btn-maps{background:#E8F5E9;color:#2E7D32;border-color:#2E7D3233}
+
+.stop-address{font-size:12px;color:var(--ink2);line-height:1.4}
+.stop-notes{font-size:12px;color:var(--ink3);font-style:italic;background:var(--bg);padding:6px 10px;border-radius:var(--r);border-left:3px solid var(--border)}
+
+/* Tech status */
+.tech-status-row{display:flex;align-items:center;gap:6px;padding:6px 0}
+.tech-status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.tech-status-label{font-size:12px;font-family:var(--mono);font-weight:500}
+.tech-status-time{font-size:10px;color:var(--ink3);font-family:var(--mono)}
+
+/* Status update buttons */
+.stop-footer{padding:10px 14px;border-top:1px solid var(--border2);background:var(--bg)}
+.status-btn{width:100%;padding:14px 16px;border-radius:var(--r2);border:none;font-family:var(--sans);font-size:15px;font-weight:600;cursor:pointer;min-height:48px;transition:all 0.15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.status-btn:active{transform:scale(0.97);opacity:0.85}
+.status-btn-primary{background:var(--accent2);color:#fff}
+.status-btn-success{background:var(--accent3);color:#fff}
+.status-btn-danger{background:#B71C1C;color:#fff}
+.status-btn-warn{background:#6A1B9A;color:#fff}
+.status-btn-row{display:flex;gap:8px;margin-top:8px}
+.status-btn-row .status-btn{flex:1;font-size:13px;padding:12px 8px}
+
+/* Done card */
+.stop-card.is-done{opacity:0.6}
+.stop-card.is-done .stop-footer{background:#E8F5E9}
+
+/* Status timeline */
+.timeline{display:flex;flex-direction:column;gap:4px;padding:4px 0}
+.timeline-item{display:flex;align-items:center;gap:8px;font-size:11px;font-family:var(--mono);color:var(--ink2)}
+.timeline-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+/* Toast */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-family:var(--mono);z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none;max-width:90vw;text-align:center}
+.toast.show{opacity:1}
+
+/* Empty state */
+.empty-state{text-align:center;padding:60px 24px;color:var(--ink3)}
+.empty-state .icon{font-size:48px;margin-bottom:12px}
+.empty-state h2{font-family:var(--serif);font-weight:300;font-size:20px;color:var(--ink2);margin-bottom:6px}
+
+/* Summary bar */
+.summary-bar{margin:12px 12px 0;padding:10px 14px;background:var(--surface);border-radius:var(--r2);border:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:12px;font-family:var(--mono)}
+.summary-stat{text-align:center}
+.summary-stat .val{font-size:18px;font-family:var(--serif);font-weight:600}
+.summary-stat .lbl{font-size:9px;color:var(--ink3);text-transform:uppercase;letter-spacing:0.05em}
+</style>
+</head>
+<body>
+
+<!-- Loading screen -->
+<div id="loading-screen" class="screen-center">
+  <div class="spinner"></div>
+  <h1>Loading stops...</h1>
+  <p>Connecting to server</p>
+</div>
+
+<!-- Error screen -->
+<div id="error-screen" class="screen-center" style="display:none">
+  <div style="font-size:48px;margin-bottom:12px">⚠️</div>
+  <h1 id="error-title">Invalid Link</h1>
+  <p id="error-msg">This link is missing required parameters. Please ask your admin for a valid link.</p>
+</div>
+
+<!-- Main app -->
+<div id="app" style="display:none">
+  <div class="header">
+    <div>
+      <div class="header-logo">Blr<span>Install</span></div>
+    </div>
+    <div class="header-meta">
+      <div class="header-guide" id="h-guide"></div>
+      <div class="header-date" id="h-date"></div>
+    </div>
+    <div class="sync-dot" id="sync-dot" style="background:rgba(255,200,50,0.9)" title="Connecting..."></div>
+  </div>
+
+  <div id="summary"></div>
+  <div id="stop-list" class="stop-list"></div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+/* ─── CONFIG ─── */
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyDMaVnRPjK55-T95m9AS49Ju_bgR_p42ic",
+  authDomain:        "mapping-ferra-installation.firebaseapp.com",
+  databaseURL:       "https://mapping-ferra-installation-default-rtdb.firebaseio.com",
+  projectId:         "mapping-ferra-installation",
+  storageBucket:     "mapping-ferra-installation.firebasestorage.app",
+  messagingSenderId: "1037635127527",
+  appId:             "1:1037635127527:web:a56c96436da69244097a42"
+};
+const FB_PATH = 'blr_tracker/v2';
+
+const DAY_PLAN = [
+  {day:1,date:"11 Apr",dateLabel:"Saturday, 11 April",zone:"North",label:"North — Hebbal / Yelahanka",color:"#1e40af",bg:"#DBEAFE"},
+  {day:2,date:"12 Apr",dateLabel:"Sunday, 12 April",zone:"North-West",label:"North-West — Rajajinagar",color:"#5b21b6",bg:"#EDE9FE"},
+  {day:3,date:"13 Apr",dateLabel:"Monday, 13 April",zone:"East",label:"East — Whitefield Corridor",color:"#065f46",bg:"#D1FAE5"},
+  {day:4,date:"14 Apr",dateLabel:"Tuesday, 14 April",zone:"Central",label:"Central — Indiranagar, Bellandur",color:"#92400e",bg:"#FEF3C7"},
+  {day:5,date:"15 Apr",dateLabel:"Wednesday, 15 April",zone:"South",label:"South — HSR, Sarjapur, Begur",color:"#9f1239",bg:"#FFE4E6"},
+  {day:6,date:"16 Apr",dateLabel:"Thursday, 16 April",zone:"South",label:"South — Banashankari",color:"#9f1239",bg:"#FFE4E6"},
+  {day:7,date:"17 Apr",dateLabel:"Friday, 17 April",zone:"Outer",label:"Outer — Attibele, Nelamangala",color:"#374151",bg:"#F3F4F6"},
+];
+
+const GUIDE_COLORS = {
+  1:{color:'#1e40af',bg:'#DBEAFE',label:'Murthy'},
+  2:{color:'#b45309',bg:'#FEF3C7',label:'Divakar'},
+};
+
+const TECH_STATUSES = [
+  {value:'en_route',    label:'En Route',     icon:'🚗', color:'#2563eb', bg:'#DBEAFE'},
+  {value:'reached',     label:'Reached',      icon:'📍', color:'#7c3aed', bg:'#EDE9FE'},
+  {value:'started',     label:'Started',      icon:'🔧', color:'#b45309', bg:'#FEF3C7'},
+  {value:'completed',   label:'Completed',    icon:'✅', color:'#2E7D32', bg:'#E8F5E9'},
+  {value:'cancelled',   label:'Cancelled',    icon:'❌', color:'#B71C1C', bg:'#FCE4EC'},
+  {value:'rescheduled', label:'Rescheduled',  icon:'📅', color:'#6A1B9A', bg:'#EDE7F6'},
+];
+
+function techStatusInfo(s){ return TECH_STATUSES.find(t=>t.value===s)||null; }
+
+function normalizeStatus(s){
+  if(!s||s==='confirmed'||s==='pending') return 'paid';
+  if(s==='future') return 'scheduled';
+  return s;
+}
+
+function fmtTime(t){
+  if(!t) return '';
+  const [h,m]=t.split(':').map(Number);
+  const ampm=h>=12?'PM':'AM';
+  const h12=h%12||12;
+  return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+
+function fmtShortTime(isoStr){
+  if(!isoStr) return '';
+  const d=new Date(isoStr);
+  const h=d.getHours(), m=d.getMinutes();
+  const ampm=h>=12?'PM':'AM';
+  return `${h%12||12}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+
+function getEntryCalDate(r){
+  if(r.day>=1&&r.day<=7){
+    const dp=DAY_PLAN.find(d=>d.day===r.day);
+    if(dp) return parseInt(dp.date);
+  }
+  if(r.date){ const m=r.date.match(/\d+/); if(m) return parseInt(m[0]); }
+  return null;
+}
+
+/* ─── STATE ─── */
+let db = [];
+let routeGuide = {};
+let routeStopTimes = {};
+let routeOrders = {};
+let _fbRef = null;
+let guideNum, calDay, guideName, guideColor, dayLabel;
+
+/* ─── URL PARAMS ─── */
+const params = new URLSearchParams(location.search);
+guideNum = parseInt(params.get('guide'));
+calDay = parseInt(params.get('date'));
+
+if(!guideNum || !calDay || !GUIDE_COLORS[guideNum]){
+  document.getElementById('loading-screen').style.display='none';
+  document.getElementById('error-screen').style.display='flex';
+  if(!params.get('guide')&&!params.get('date')){
+    document.getElementById('error-title').textContent='Missing Parameters';
+    document.getElementById('error-msg').textContent='URL needs ?guide=1&date=14 parameters. Ask your admin for the correct link.';
+  }
+} else {
+  guideName = GUIDE_COLORS[guideNum].label;
+  guideColor = GUIDE_COLORS[guideNum].color;
+  const dp = DAY_PLAN.find(d=>parseInt(d.date)===calDay);
+  dayLabel = dp ? dp.dateLabel : calDay+' April';
+
+  document.getElementById('h-guide').textContent = guideName;
+  document.getElementById('h-guide').style.color = guideColor;
+  document.getElementById('h-date').textContent = dayLabel;
+
+  initFirebase();
+}
+
+/* ─── FIREBASE ─── */
+function initFirebase(){
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    const db2 = firebase.database();
+    _fbRef = db2.ref(FB_PATH);
+
+    firebase.auth().signInAnonymously().then(()=>{
+      // Rows listener
+      const rowsRef = _fbRef.child('rows');
+      rowsRef.on('child_added', snap=>{
+        const r=snap.val(); if(!r||!r.id) return;
+        const idx=db.findIndex(x=>x.id===r.id);
+        if(idx<0) db.push(r); else db[idx]=r;
+        renderStops();
+      });
+      rowsRef.on('child_changed', snap=>{
+        const r=snap.val(); if(!r||!r.id) return;
+        const idx=db.findIndex(x=>x.id===r.id);
+        if(idx>=0) db[idx]=r; else db.push(r);
+        renderStops();
+      });
+      rowsRef.on('child_removed', snap=>{
+        const r=snap.val(); if(!r||!r.id) return;
+        const idx=db.findIndex(x=>x.id===r.id);
+        if(idx>=0) db.splice(idx,1);
+        renderStops();
+      });
+
+      // Meta listener
+      _fbRef.child('meta').on('value', snap=>{
+        const m=snap.val(); if(!m) return;
+        if(m.routeGuide){ routeGuide={}; Object.assign(routeGuide,m.routeGuide); }
+        if(m.routeStopTimes){ routeStopTimes={}; Object.assign(routeStopTimes,m.routeStopTimes); }
+        if(m.routeOrders){ routeOrders={}; Object.assign(routeOrders,m.routeOrders); }
+        renderStops();
+      });
+
+      // Connection status
+      db2.ref('.info/connected').on('value', snap=>{
+        const dot=document.getElementById('sync-dot');
+        if(snap.val()){
+          dot.style.background='rgba(100,220,120,0.9)';
+          dot.classList.remove('pulsing');
+          dot.title='Connected';
+        } else {
+          dot.style.background='rgba(220,100,80,0.9)';
+          dot.classList.remove('pulsing');
+          dot.title='Offline';
+        }
+      });
+
+      // Show app
+      document.getElementById('loading-screen').style.display='none';
+      document.getElementById('app').style.display='block';
+
+    }).catch(err=>{
+      document.getElementById('loading-screen').style.display='none';
+      document.getElementById('error-screen').style.display='flex';
+      document.getElementById('error-title').textContent='Connection Failed';
+      document.getElementById('error-msg').textContent='Could not connect: '+err.message+'. Ask your admin to enable Anonymous Auth in Firebase Console.';
+    });
+
+  } catch(e){
+    document.getElementById('loading-screen').style.display='none';
+    document.getElementById('error-screen').style.display='flex';
+    document.getElementById('error-title').textContent='Error';
+    document.getElementById('error-msg').textContent=e.message;
+  }
+}
+
+/* ─── RENDER ─── */
+function getMyStops(){
+  const dayEntries = db.filter(r=>getEntryCalDate(r)===calDay);
+  const myStops = dayEntries.filter(r=>routeGuide[r.id]===guideNum);
+  // Sort by time, then by route order
+  return myStops.sort((a,b)=>{
+    const ta=routeStopTimes[a.id]||'99:99';
+    const tb=routeStopTimes[b.id]||'99:99';
+    if(ta!==tb) return ta<tb?-1:1;
+    return 0;
+  });
+}
+
+function renderStops(){
+  const stops=getMyStops();
+  const list=document.getElementById('stop-list');
+  const summary=document.getElementById('summary');
+
+  if(!stops.length){
+    list.innerHTML='<div class="empty-state"><div class="icon">📋</div><h2>No stops assigned</h2><p>No installations assigned to '+guideName+' for '+dayLabel+'</p></div>';
+    summary.innerHTML='';
+    return;
+  }
+
+  // Summary bar
+  const done=stops.filter(r=>r.techStatus==='completed').length;
+  const inProgress=stops.filter(r=>r.techStatus&&r.techStatus!=='completed'&&r.techStatus!=='cancelled'&&r.techStatus!=='rescheduled').length;
+  const pending=stops.filter(r=>!r.techStatus).length;
+  const cancelled=stops.filter(r=>r.techStatus==='cancelled'||r.techStatus==='rescheduled').length;
+  summary.innerHTML=`<div class="summary-bar">
+    <div class="summary-stat"><div class="val">${stops.length}</div><div class="lbl">Total</div></div>
+    <div class="summary-stat"><div class="val" style="color:var(--accent3)">${done}</div><div class="lbl">Done</div></div>
+    <div class="summary-stat"><div class="val" style="color:var(--accent2)">${inProgress}</div><div class="lbl">Active</div></div>
+    <div class="summary-stat"><div class="val" style="color:var(--ink3)">${pending}</div><div class="lbl">Pending</div></div>
+    ${cancelled?`<div class="summary-stat"><div class="val" style="color:#B71C1C">${cancelled}</div><div class="lbl">Skip</div></div>`:''}
+  </div>`;
+
+  list.innerHTML=stops.map((r,i)=>renderCard(r,i+1)).join('');
+}
+
+function renderCard(r, num){
+  const time=routeStopTimes[r.id];
+  const ts=r.techStatus||'';
+  const isTerminal=ts==='completed'||ts==='cancelled'||ts==='rescheduled';
+  const cardClass=isTerminal?'stop-card is-done':'stop-card';
+
+  // Address line
+  let addr='';
+  if(r.area) addr+=r.area;
+  if(r.pin) addr+=(addr?', ':'')+r.pin;
+
+  // Maps link
+  let mapsUrl='';
+  if(r.locationUrl) mapsUrl=r.locationUrl;
+  else if(r.lat&&r.lng) mapsUrl='https://maps.google.com/?q='+r.lat+','+r.lng;
+
+  // Timeline from techStatusLog
+  let timelineHtml='';
+  if(r.techStatusLog&&r.techStatusLog.length){
+    timelineHtml='<div class="timeline">'+r.techStatusLog.map(entry=>{
+      const info=techStatusInfo(entry.status);
+      return `<div class="timeline-item">
+        <div class="timeline-dot" style="background:${info?info.color:'#999'}"></div>
+        <span>${info?info.label:entry.status}</span>
+        <span style="color:var(--ink3)">${fmtShortTime(entry.at)}</span>
+      </div>`;
+    }).join('')+'</div>';
+  }
+
+  // Current status display
+  let statusHtml='';
+  if(ts){
+    const info=techStatusInfo(ts);
+    const lastLog=r.techStatusLog&&r.techStatusLog.length?r.techStatusLog[r.techStatusLog.length-1]:null;
+    statusHtml=`<div class="tech-status-row">
+      <div class="tech-status-dot" style="background:${info?info.color:'#999'}"></div>
+      <span class="tech-status-label" style="color:${info?info.color:'#999'}">${info?info.icon+' '+info.label:ts}</span>
+      ${lastLog?`<span class="tech-status-time">${fmtShortTime(lastLog.at)}</span>`:''}
+    </div>`;
+  }
+
+  // Action buttons
+  let buttonsHtml='';
+  if(!ts){
+    buttonsHtml=`<button class="status-btn status-btn-primary" onclick="updateTechStatus(${r.id},'en_route')">🚗 En Route</button>`;
+  } else if(ts==='en_route'){
+    buttonsHtml=`<button class="status-btn status-btn-primary" onclick="updateTechStatus(${r.id},'reached')">📍 Reached</button>`;
+  } else if(ts==='reached'){
+    buttonsHtml=`<button class="status-btn status-btn-primary" onclick="updateTechStatus(${r.id},'started')">🔧 Start Installation</button>`;
+  } else if(ts==='started'){
+    buttonsHtml=`<button class="status-btn status-btn-success" onclick="updateTechStatus(${r.id},'completed')">✅ Completed</button>
+      <div class="status-btn-row">
+        <button class="status-btn status-btn-danger" onclick="updateTechStatus(${r.id},'cancelled')">❌ Cancel</button>
+        <button class="status-btn status-btn-warn" onclick="updateTechStatus(${r.id},'rescheduled')">📅 Reschedule</button>
+      </div>`;
+  }
+
+  return `<div class="${cardClass}">
+    <div class="stop-header">
+      <div class="stop-num" style="background:${guideColor}">${num}</div>
+      <div class="stop-name">${escHtml(r.name||'—')}</div>
+      ${time?`<div class="stop-time">${fmtTime(time)}</div>`:''}
+    </div>
+    <div class="stop-body">
+      <div class="stop-actions-row">
+        ${r.phone?`<a href="tel:${r.phone}" class="action-btn action-btn-phone">📞 ${r.phone}</a>`:''}
+        ${mapsUrl?`<a href="${mapsUrl}" target="_blank" rel="noopener" class="action-btn action-btn-maps">📍 Open Maps</a>`:''}
+      </div>
+      ${addr?`<div class="stop-address">${escHtml(addr)}</div>`:''}
+      ${r.notes?`<div class="stop-notes">📝 ${escHtml(r.notes)}</div>`:''}
+      ${timelineHtml}
+      ${statusHtml}
+    </div>
+    ${buttonsHtml?`<div class="stop-footer">${buttonsHtml}</div>`:'<div class="stop-footer" style="padding:8px 14px;text-align:center;font-size:11px;color:var(--ink3);font-family:var(--mono)">'+(isTerminal?(techStatusInfo(ts)?techStatusInfo(ts).icon+' '+techStatusInfo(ts).label:ts):'—')+'</div>'}
+  </div>`;
+}
+
+/* ─── STATUS UPDATE ─── */
+function updateTechStatus(id, newStatus){
+  const row=db.find(r=>r.id===id);
+  if(!row) return;
+
+  row.techStatus=newStatus;
+  if(!row.techStatusLog) row.techStatusLog=[];
+  row.techStatusLog.push({
+    status:newStatus,
+    at:new Date().toISOString(),
+    guide:guideNum
+  });
+
+  // Terminal statuses update the main status field
+  if(newStatus==='completed') row.status='done';
+  else if(newStatus==='cancelled') row.status='cancelled';
+  else if(newStatus==='rescheduled') row.status='rescheduled';
+
+  // Write to Firebase
+  const stamped=Object.assign({}, row, {
+    _lastModifiedBy:'tech:'+guideName,
+    _lastModifiedAt:new Date().toISOString()
+  });
+
+  const dot=document.getElementById('sync-dot');
+  dot.style.background='rgba(255,200,50,0.9)';
+  dot.classList.add('pulsing');
+
+  _fbRef.child('rows').child(String(id)).set(stamped).then(()=>{
+    dot.style.background='rgba(100,220,120,0.9)';
+    dot.classList.remove('pulsing');
+    const info=techStatusInfo(newStatus);
+    toast((info?info.icon+' ':'')+( info?info.label:newStatus));
+  }).catch(e=>{
+    dot.style.background='rgba(220,100,80,0.9)';
+    dot.classList.remove('pulsing');
+    toast('Failed to save — check connection');
+    console.warn('Firebase write error',e);
+  });
+
+  renderStops();
+}
+
+/* ─── HELPERS ─── */
+function escHtml(s){
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let _toastTimer=null;
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>el.classList.remove('show'),2500);
+}
+</script>
+</body>
+</html>
