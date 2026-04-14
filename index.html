@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.059</title>
+<title>BLR Tracker · v1.060</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -500,7 +500,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.059';
+const APP_VERSION = 'v1.060';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -2080,15 +2080,21 @@ function renderRouteStops(dayNum){
       return `<button onmousedown="event.stopPropagation()" onclick="setStopTimePill(${r.id},'${p.time}',${dayNum})" style="font-size:9px;padding:1px 4px;border-radius:8px;border:1px solid ${bdr};background:${bg};color:${color};font-weight:${fw};cursor:pointer;font-family:var(--mono);white-space:nowrap;flex-shrink:0">${p.label}</button>`;
     }).join('');
     const cardBg=!hasCoords?'#FFFBEB':'var(--surface)';
+    const techLog=r.techStatusLog&&r.techStatusLog.length?r.techStatusLog[r.techStatusLog.length-1]:null;
+    const techTimeStr=techLog?new Date(techLog.at).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}):'';
     return `<div class="route-stop" data-id="${r.id}" style="padding:5px 7px;border-bottom:0.5px solid var(--border2);cursor:grab;background:${cardBg}">
       <div style="display:flex;align-items:center;gap:4px">
         <div style="width:17px;height:17px;border-radius:50%;background:${colColor};color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${globalIdx+1}</div>
         <div style="font-size:11px;font-weight:500;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)">${r.name||'—'}</div>
-        ${techBadge?`<span style="font-size:8px;font-family:var(--mono);font-weight:600;color:${techBadge.c};padding:1px 4px;border-radius:6px;flex-shrink:0;white-space:nowrap">${techBadge.i}${techBadge.l}</span>`:''}
         ${confirmedTime?`<span style="font-size:9px;font-family:var(--mono);font-weight:600;color:#2E7D32;background:#E8F5E9;padding:1px 4px;border-radius:6px;flex-shrink:0">${fmtTime(confirmedTime)}</span>`:''}
         ${!hasCoords?`<span style="font-size:9px;color:#92400e;background:#FEF3C7;padding:0 3px;border-radius:5px;flex-shrink:0" title="Pincode not mapped">!</span>`:''}
         <button onmousedown="event.stopPropagation()" onclick="copyStopDetails(${r.id})" title="Copy details" style="flex-shrink:0;width:18px;height:18px;border:none;background:transparent;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;border-radius:4px;opacity:0.4;transition:opacity 0.15s" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.4'"><span style="font-size:11px">📋</span></button>
       </div>
+      ${techBadge?`<div style="display:flex;align-items:center;gap:4px;margin:3px 0 1px;padding:3px 6px;border-radius:5px;background:${techBadge.bg};border-left:3px solid ${techBadge.c}">
+        <span style="font-size:10px">${techBadge.i}</span>
+        <span style="font-size:10px;font-family:var(--mono);font-weight:600;color:${techBadge.c}">${techBadge.l}</span>
+        ${techTimeStr?`<span style="font-size:9px;font-family:var(--mono);color:${techBadge.c}88;margin-left:auto">${techTimeStr}</span>`:''}
+      </div>`:''}
       <div style="display:flex;align-items:center;gap:3px;margin-top:3px;flex-wrap:wrap">
         ${pillsHtml}
       </div>
@@ -2645,6 +2651,10 @@ function sheetRow(r){
   const statusOpts=STATUS_OPTIONS.map(o=>
     `<option value="${o.value}"${normalizeStatus(r.status)===o.value?' selected':''}>${o.label}</option>`).join('');
   const editBy=r._lastModifiedBy?r._lastModifiedBy.split('@')[0]:'';
+  const TECH_S={'en_route':{l:'En Route',c:'#2563eb',i:'🚗'},'reached':{l:'Reached',c:'#7c3aed',i:'📍'},'started':{l:'Started',c:'#b45309',i:'🔧'},'completed':{l:'Done',c:'#2E7D32',i:'✅'},'cancelled':{l:'Cancelled',c:'#B71C1C',i:'❌'},'rescheduled':{l:'Resched',c:'#6A1B9A',i:'📅'}};
+  const ts=r.techStatus&&TECH_S[r.techStatus]?TECH_S[r.techStatus]:null;
+  const tsLog=r.techStatusLog&&r.techStatusLog.length?r.techStatusLog[r.techStatusLog.length-1]:null;
+  const tsTime=tsLog?new Date(tsLog.at).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}):'';
   return `<tr class="sheet-data-row" data-id="${r.id}" style="background:#FFFFFF">
     <td class="drag-handle" style="cursor:grab;color:var(--ink3);text-align:center;padding:4px 8px;user-select:none;font-size:14px">⠿</td>
     <td><input class="sheet-input" value="${escAttr(r.name)}" placeholder="Name" onchange="updateEntry(${r.id},'name',this.value)"/>${editBy?`<div style="font-size:8px;color:var(--ink3);font-family:var(--mono);padding:0 6px" title="${r._lastModifiedBy||''}">✎ ${editBy}</div>`:''}</td>
@@ -2652,7 +2662,7 @@ function sheetRow(r){
     <td><input class="sheet-input" value="${escAttr(r.area)}" placeholder="Area / locality" onchange="updateEntry(${r.id},'area',this.value)"/></td>
     <td><input class="sheet-input" value="${escAttr(r.pin)}" placeholder="560xxx" maxlength="6" style="font-family:var(--mono);width:80px" onchange="updateEntry(${r.id},'pin',this.value)"/></td>
     <td><input class="sheet-input" value="${r.lat&&r.lng?r.lat.toFixed(5)+','+r.lng.toFixed(5):''}" placeholder="Maps link / lat,lng" style="font-family:var(--mono);width:120px;font-size:10px" onchange="updateEntryLocation(${r.id},this.value)"/>${r.lat&&r.lng?`<span style="font-size:8px;color:#2E7D32">📍</span>`:''}</td>
-    <td><select class="sheet-input" onchange="updateEntry(${r.id},'status',this.value)">${statusOpts}</select></td>
+    <td><select class="sheet-input" onchange="updateEntry(${r.id},'status',this.value)">${statusOpts}</select>${ts?`<div style="font-size:9px;font-family:var(--mono);font-weight:600;color:${ts.c};padding:1px 6px;white-space:nowrap">${ts.i} ${ts.l}${tsTime?' · '+tsTime:''}</div>`:''}</td>
     <td><input class="sheet-input" value="${escAttr(r.notes||'')}" placeholder="Notes…" onchange="updateEntry(${r.id},'notes',this.value)"/></td>
     <td><button class="delete-btn" onclick="deleteRow(${r.id});renderSheet()">✕</button></td>
   </tr>`;
