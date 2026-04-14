@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.057</title>
+<title>BLR Tracker · v1.058</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -206,7 +206,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.057</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.058</span></div>
     </div>
 
     <div class="stat-box">
@@ -500,7 +500,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.057';
+const APP_VERSION = 'v1.058';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -1482,13 +1482,14 @@ function addInstallation(){
     date:dateDisplay,day:dayNum,status,zone,notes};
   // Parse Google Maps location if provided
   const loc=parseLocation(locInput);
-  if(loc){ entry.lat=loc.lat; entry.lng=loc.lng; }
+  if(loc){ entry.lat=loc.lat; entry.lng=loc.lng; if(locInput.includes('google')||locInput.includes('goo.gl')||locInput.includes('maps.app')) entry.locationUrl=locInput; }
   else {
     // Check if short URL was already resolved in preview
     const hint=document.getElementById('f-loc-hint');
     if(hint && hint.dataset.resolvedLat && hint.dataset.resolvedLng){
       entry.lat=parseFloat(hint.dataset.resolvedLat);
       entry.lng=parseFloat(hint.dataset.resolvedLng);
+      if(locInput) entry.locationUrl=locInput;
     }
   }
   db.unshift(entry);
@@ -2157,7 +2158,8 @@ function copyStopDetails(id){
   lines.push('📞 '+(r.phone||'—'));
   if(r.area||r.pin) lines.push('📍 '+(r.area||'')+(r.area&&r.pin?', ':'')+( r.pin?'Bangalore '+r.pin:''));
   else if(r.pin) lines.push('📍 Pincode: '+r.pin);
-  if(r.lat&&r.lng) lines.push('🗺 https://maps.google.com/?q='+r.lat+','+r.lng);
+  if(r.locationUrl) lines.push('🗺 '+r.locationUrl);
+  else if(r.lat&&r.lng) lines.push('🗺 https://maps.google.com/?q='+r.lat+','+r.lng);
   if(timeStr) lines.push('🕐 '+timeStr);
   if(statusStr) lines.push('📋 '+statusStr);
   if(r.notes) lines.push('📝 '+r.notes);
@@ -2197,7 +2199,8 @@ function copyGuideSchedule(guideNum, dayNum){
     lines.push('📞 '+( r.phone||'—'));
     if(r.area) lines.push('📍 '+ r.area+(r.pin?', '+r.pin:''));
     else if(r.pin) lines.push('📍 Pincode: '+r.pin);
-    if(r.lat&&r.lng) lines.push('🗺 https://maps.google.com/?q='+r.lat+','+r.lng);
+    if(r.locationUrl) lines.push('🗺 '+r.locationUrl);
+    else if(r.lat&&r.lng) lines.push('🗺 https://maps.google.com/?q='+r.lat+','+r.lng);
     lines.push('🕐 '+timeStr);
     if(statusStr) lines.push('📋 '+statusStr);
     if(r.notes) lines.push('📝 '+r.notes);
@@ -2754,15 +2757,20 @@ function updateEntry(id,field,value){
 function updateEntryLocation(id,value){
   const row=db.find(r=>r.id===id);
   if(!row) return;
-  if(!value.trim()){ delete row.lat; delete row.lng; _dirtyRows.add(id); scheduleSave(); renderSheet(); return; }
+  if(!value.trim()){ delete row.lat; delete row.lng; delete row.locationUrl; _dirtyRows.add(id); scheduleSave(); renderSheet(); return; }
   // Try direct parse first
   const loc=parseLocation(value);
-  if(loc){ row.lat=loc.lat; row.lng=loc.lng; _dirtyRows.add(id); scheduleSave(); renderSheet(); return; }
+  if(loc){
+    row.lat=loc.lat; row.lng=loc.lng;
+    if(value.includes('google')||value.includes('goo.gl')||value.includes('maps.app')) row.locationUrl=value;
+    else delete row.locationUrl;
+    _dirtyRows.add(id); scheduleSave(); renderSheet(); return;
+  }
   // Short URL? Resolve it asynchronously
   if(isShortMapUrl(value)){
     toast('Resolving short URL…');
     resolveShortMapUrl(value).then(loc=>{
-      row.lat=loc.lat; row.lng=loc.lng;
+      row.lat=loc.lat; row.lng=loc.lng; row.locationUrl=value;
       _dirtyRows.add(id); scheduleSave(); renderSheet();
       toast('📍 Location saved: '+loc.lat.toFixed(5)+', '+loc.lng.toFixed(5));
     }).catch(()=>{
