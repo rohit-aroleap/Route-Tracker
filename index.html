@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.063</title>
+<title>BLR Tracker · v1.064</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -103,6 +103,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
 .sc-cancelled{background:#FCE4EC;color:#B71C1C}
 .sc-rescheduled{background:#EDE7F6;color:#6A1B9A}
 .sc-return{background:#FFF7ED;color:#C2410C}
+.sc-maintenance{background:#E0F2FE;color:#0369A1}
 /* legacy */
 .sc-confirmed{background:#E3F2FD;color:#1565C0}
 .sc-pending{background:#FFF8E1;color:#B45309}
@@ -277,6 +278,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
           <option value="cancelled">Cancelled</option>
           <option value="rescheduled">Rescheduled</option>
           <option value="return">Return</option>
+          <option value="maintenance">Maintenance</option>
         </select>
       </div>
       <div class="tbl-wrap">
@@ -349,6 +351,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
               <option value="cancelled">Cancelled</option>
               <option value="rescheduled">Rescheduled</option>
               <option value="return">Return</option>
+              <option value="maintenance">Maintenance</option>
             </select>
           </div>
           <div class="form-group full">
@@ -500,7 +503,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.063';
+const APP_VERSION = 'v1.064';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -1012,6 +1015,7 @@ const STATUS_OPTIONS=[
   {value:'cancelled', label:'Cancelled',              cls:'sc-cancelled'},
   {value:'rescheduled',label:'Rescheduled',           cls:'sc-rescheduled'},
   {value:'return',    label:'Return',                 cls:'sc-return'},
+  {value:'maintenance',label:'Maintenance',           cls:'sc-maintenance'},
 ];
 function statusChip(s){
   const opt=STATUS_OPTIONS.find(o=>o.value===s);
