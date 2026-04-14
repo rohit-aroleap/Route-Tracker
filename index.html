@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.062</title>
+<title>BLR Tracker · v1.063</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -500,7 +500,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.062';
+const APP_VERSION = 'v1.063';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -2457,8 +2457,14 @@ function renderMultiRouteStops(selectedDays){
     new Sortable(dayEl,{
       animation:150,ghostClass:'route-drag-ghost',
       onEnd:function(){
+        // Capture drag order
         routeOrders[dayNum]=[...dayEl.querySelectorAll('.route-stop')].map(el=>parseInt(el.dataset.id));
-        drawMultiRouteMap(selectedDays); scheduleSave();
+        // Re-sort: confirmed-time stops sorted by time first, then the rest in drag order
+        const confirmed=routeOrders[dayNum].filter(id=>routeTimeConfirmed[id]&&routeStopTimes[id]);
+        const rest=routeOrders[dayNum].filter(id=>!(routeTimeConfirmed[id]&&routeStopTimes[id]));
+        confirmed.sort((a,b)=>(routeStopTimes[a]||'').localeCompare(routeStopTimes[b]||''));
+        routeOrders[dayNum]=[...confirmed,...rest];
+        renderRouteView(); drawMultiRouteMap(selectedDays); scheduleSave();
       }
     });
   });
