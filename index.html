@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.056</title>
+<title>BLR Tracker · v1.057</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -206,7 +206,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.056</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.057</span></div>
     </div>
 
     <div class="stat-box">
@@ -500,7 +500,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.056';
+const APP_VERSION = 'v1.057';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -946,16 +946,15 @@ function parseLocation(str){
   const rawMatch=str.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
   if(rawMatch){ return valid(parseFloat(rawMatch[1]),parseFloat(rawMatch[2])); }
   // Google Maps URLs: many formats
+  // ORDER MATTERS — !3d/!4d is the actual pin, @ is just viewport center
   const patterns=[
-    /[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/,           // ?q=12.97,77.59
-    /[?&]query=(-?\d+\.?\d*),(-?\d+\.?\d*)/,        // ?query=12.97,77.59
-    /[?&]ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/,           // ?ll=12.97,77.59
-    /[?&]center=(-?\d+\.?\d*),(-?\d+\.?\d*)/,       // ?center=12.97,77.59
-    /[?&]sll=(-?\d+\.?\d*),(-?\d+\.?\d*)/,          // ?sll=12.97,77.59
-    /[?&]destination=(-?\d+\.?\d*),(-?\d+\.?\d*)/,   // directions dest
-    /@(-?\d+\.?\d*),(-?\d+\.?\d*)/,                  // /@12.97,77.59,17z
-    /!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/,              // data=!3d12.97!4d77.59
-    /\/(-?\d+\.?\d*),(-?\d+\.?\d*)/                  // /12.97,77.59
+    /!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/,              // data=!3d12.97!4d77.59 (ACTUAL PIN — highest priority)
+    /[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/,             // ?q=12.97,77.59
+    /[?&]query=(-?\d+\.?\d*),(-?\d+\.?\d*)/,          // ?query=12.97,77.59
+    /[?&]ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/,             // ?ll=12.97,77.59
+    /[?&]destination=(-?\d+\.?\d*),(-?\d+\.?\d*)/,     // directions dest
+    /@(-?\d+\.?\d*),(-?\d+\.?\d*)/,                    // /@12.97,77.59,17z (viewport — lower priority)
+    /\/(-?\d+\.?\d*),(-?\d+\.?\d*)/                    // /12.97,77.59 (fallback)
   ];
   for(const p of patterns){
     const m=str.match(p);
