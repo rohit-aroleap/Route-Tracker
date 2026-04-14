@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.061</title>
+<title>BLR Tracker · v1.062</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -500,7 +500,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.061';
+const APP_VERSION = 'v1.062';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -2068,8 +2068,8 @@ function renderRouteStops(dayNum){
     const availList=routeAvailSlots[r.id]||[];
     const gAssigned=routeGuide[r.id];
     const colColor=gAssigned?GUIDE_COLORS[gAssigned].color:'#9CA3AF';
-    const TECH_STATUS_MAP={'not_started':{l:'Not Started',c:'#64748b',i:'⏳'},'on_my_way':{l:'On My Way',c:'#2563eb',i:'🚗'},'en_route':{l:'On My Way',c:'#2563eb',i:'🚗'},'reached':{l:'Reached',c:'#7c3aed',i:'📍'},'started':{l:'Started',c:'#b45309',i:'🔧'},'completed':{l:'Done',c:'#2E7D32',i:'✅'},'cancelled':{l:'Cancelled',c:'#B71C1C',i:'❌'},'rescheduled':{l:'Resched',c:'#6A1B9A',i:'📅'}};
-    const techBadge=r.techStatus&&r.techStatus!=='not_started'&&TECH_STATUS_MAP[r.techStatus]?TECH_STATUS_MAP[r.techStatus]:null;
+    const TECH_STATUS_MAP={'not_started':{l:'Not Started',c:'#64748b',i:'⏳',bg:'#F1F5F9'},'on_my_way':{l:'On My Way',c:'#2563eb',i:'🚗',bg:'#DBEAFE'},'en_route':{l:'On My Way',c:'#2563eb',i:'🚗',bg:'#DBEAFE'},'reached':{l:'Reached',c:'#7c3aed',i:'📍',bg:'#EDE9FE'},'started':{l:'Started',c:'#b45309',i:'🔧',bg:'#FEF3C7'},'completed':{l:'Done',c:'#2E7D32',i:'✅',bg:'#E8F5E9'},'cancelled':{l:'Cancelled',c:'#B71C1C',i:'❌',bg:'#FCE4EC'},'rescheduled':{l:'Resched',c:'#6A1B9A',i:'📅',bg:'#EDE7F6'}};
+    const techBadge=TECH_STATUS_MAP[r.techStatus||'not_started'];
     const pillsHtml=ROUTE_PRESETS.map(p=>{
       const isConf=confirmedTime===p.time;
       const isAvl=availList.includes(p.time);
