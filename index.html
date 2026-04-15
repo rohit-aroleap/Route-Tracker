@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.080</title>
+<title>BLR Tracker · v1.081</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -532,7 +532,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.080';
+const APP_VERSION = 'v1.081';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -2213,10 +2213,7 @@ function renderRouteStops(dayNum){
         ${!hasCoords?`<span style="font-size:9px;color:#92400e;background:#FEF3C7;padding:0 3px;border-radius:5px;flex-shrink:0" title="Pincode not mapped">!</span>`:''}
         <button onmousedown="event.stopPropagation()" onclick="copyStopDetails(${r.id})" title="Copy details" style="flex-shrink:0;width:18px;height:18px;border:none;background:transparent;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;border-radius:4px;opacity:0.4;transition:opacity 0.15s" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.4'"><span style="font-size:11px">📋</span></button>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;padding-left:21px;margin-top:1px">
-        ${r.phone?`<span style="font-size:9px;font-family:var(--mono);color:var(--ink3)">📞 ${r.phone}</span>`:''}
-        ${confirmedTime?`<span style="font-size:9px;font-family:var(--mono);font-weight:600;color:#2E7D32;background:#E8F5E9;padding:1px 4px;border-radius:6px">${fmtTime(confirmedTime)}</span>`:''}
-      </div>
+      ${r.phone?`<div style="font-size:11px;font-family:var(--mono);color:var(--ink2);padding-left:21px;margin-top:1px">📞 ${r.phone}</div>`:''}
       ${techBadge?`<div style="display:flex;align-items:center;gap:4px;margin:3px 0 1px;padding:3px 6px;border-radius:5px;background:${techBadge.bg};border-left:3px solid ${techBadge.c}">
         <span style="font-size:10px">${techBadge.i}</span>
         <span style="font-size:10px;font-family:var(--mono);font-weight:600;color:${techBadge.c}">${techBadge.l}</span>
