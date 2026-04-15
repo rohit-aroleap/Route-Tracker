@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.086</title>
+<title>BLR Tracker · v1.087</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -532,7 +532,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.086';
+const APP_VERSION = 'v1.087';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -2179,8 +2179,7 @@ function renderRouteStops(dayNum){
   }
 
   // Card HTML for a single stop
-  function cardHtml(r){
-    const globalIdx=allStops.indexOf(r);
+  function cardHtml(r, colIdx){
     const hasCoords=!!getCoords(r);
     const confirmedTime=routeStopTimes[r.id]||'';
     const availList=routeAvailSlots[r.id]||[];
@@ -2207,7 +2206,7 @@ function renderRouteStops(dayNum){
       :`<span style="font-size:8px;font-weight:700;color:#2E7D32;background:#E8F5E9;padding:1px 4px;border-radius:4px;flex-shrink:0;font-family:var(--mono)">I</span>`;
     return `<div class="route-stop" data-id="${r.id}" style="padding:5px 7px;border-bottom:0.5px solid var(--border2);cursor:grab;background:${cardBg}">
       <div style="display:flex;align-items:center;gap:4px">
-        <div style="width:17px;height:17px;border-radius:50%;background:${colColor};color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${globalIdx+1}</div>
+        <div style="width:17px;height:17px;border-radius:50%;background:${colColor};color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${colIdx+1}</div>
         <div style="font-size:11px;font-weight:500;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink)">${r.name||'—'}</div>
         ${confirmedTime?`<span style="font-size:9px;font-family:var(--mono);font-weight:600;color:#2E7D32;background:#E8F5E9;padding:1px 5px;border-radius:6px;flex-shrink:0">${fmtTime(confirmedTime)}</span>`:''}
         ${typeTag}
@@ -2241,7 +2240,7 @@ function renderRouteStops(dayNum){
           <span style="flex:1"></span>
           ${c.guide?`<button onclick="shareTechLink(${c.guide},${dayNum})" title="Copy tech link for WhatsApp" style="font-size:10px;padding:2px 6px;border-radius:var(--r);border:1px solid ${c.color}33;background:${c.bg};color:${c.color};cursor:pointer;font-family:var(--mono);display:flex;align-items:center;gap:3px;white-space:nowrap"><span style="font-size:12px">📱</span></button><button onclick="copyGuideSchedule(${c.guide},${dayNum})" title="Copy schedule for WhatsApp" style="font-size:10px;padding:2px 6px;border-radius:var(--r);border:1px solid ${c.color}33;background:${c.bg};color:${c.color};cursor:pointer;font-family:var(--mono);display:flex;align-items:center;gap:3px;white-space:nowrap"><span style="font-size:12px">📋</span> Copy</button>`:''}
         </div>
-        <div id="${c.id}" style="flex:1;overflow-y:auto;min-height:0">${c.stops.map(r=>cardHtml(r)).join('')}</div>
+        <div id="${c.id}" style="flex:1;overflow-y:auto;min-height:0">${c.stops.map((r,i)=>cardHtml(r,i)).join('')}</div>
       </div>`
     ).join('')
   }</div>`;
@@ -2412,17 +2411,23 @@ function drawRouteMap(dayNum){
   // Assign marker colors: guide 1=blue, guide 2=amber, unassigned=day color
   const markerColor=(r)=> routeGuide[r.id]? GUIDE_COLORS[routeGuide[r.id]].color : dp.color;
 
+  // Build per-guide numbering
+  const guideCounters={};
+  stops.forEach(r=>{ const g=routeGuide[r.id]||0; if(!guideCounters[g]) guideCounters[g]=0; });
   const allPoints=[];
   stops.forEach((r,i)=>{
     const coords=getCoords(r); if(!coords) return;
     const [lat,lng]=coords;
     allPoints.push([lat,lng]);
     const mc=markerColor(r);
+    const g=routeGuide[r.id]||0;
+    guideCounters[g]=(guideCounters[g]||0)+1;
+    const stopNum=guideCounters[g];
     const timeStr=routeStopTimes[r.id]?fmtTimeShort(routeStopTimes[r.id]):'';
     // Marker: circle with stop number + optional time line
     const icon=L.divIcon({
       html:`<div style="display:flex;flex-direction:column;align-items:center;gap:1px">
-        <div style="width:28px;height:28px;border-radius:50%;background:${mc};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);font-family:sans-serif">${i+1}</div>
+        <div style="width:28px;height:28px;border-radius:50%;background:${mc};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);font-family:sans-serif">${stopNum}</div>
         ${timeStr?`<div style="background:${mc};color:#fff;font-size:9px;font-weight:700;padding:1px 4px;border-radius:4px;white-space:nowrap;font-family:sans-serif;box-shadow:0 1px 3px rgba(0,0,0,0.25)">${timeStr}</div>`:''}
       </div>`,
       iconSize:[28,timeStr?44:28],iconAnchor:[14,14],className:''
