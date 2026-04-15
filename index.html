@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.087</title>
+<title>BLR Tracker · v1.088</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -532,7 +532,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.087';
+const APP_VERSION = 'v1.088';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -2105,18 +2105,19 @@ function getRouteStops(dayNum){
   return routeOrders[dayNum].map(id=>all.find(r=>r.id===id)).filter(Boolean);
 }
 
-/* Returns stops in display order: Murthy (time-sorted) → Divakar (time-sorted) → Unassigned
-   This defines the canonical global numbering used on both cards and map markers */
+/* Returns stops in display order: Murthy → Divakar → Unassigned
+   Within each group: confirmed-time stops sorted by time first, then rest in routeOrders order */
 function getSortedRouteStops(dayNum){
-  const all=getRouteStops(dayNum);
-  const byTime=(arr)=>[...arr].sort((a,b)=>{
-    const ta=routeStopTimes[a.id]||'99:99';
-    const tb=routeStopTimes[b.id]||'99:99';
-    return ta<tb?-1:ta>tb?1:0;
-  });
-  const murthy =byTime(all.filter(r=>routeGuide[r.id]===1));
-  const divakar=byTime(all.filter(r=>routeGuide[r.id]===2));
-  const unassigned=all.filter(r=>!routeGuide[r.id]);
+  const all=getRouteStops(dayNum); // respects routeOrders
+  const sortGroup=(arr)=>{
+    const confirmed=arr.filter(r=>routeTimeConfirmed[r.id]&&routeStopTimes[r.id]);
+    const rest=arr.filter(r=>!(routeTimeConfirmed[r.id]&&routeStopTimes[r.id]));
+    confirmed.sort((a,b)=>(routeStopTimes[a.id]||'').localeCompare(routeStopTimes[b.id]||''));
+    return [...confirmed,...rest];
+  };
+  const murthy =sortGroup(all.filter(r=>routeGuide[r.id]===1));
+  const divakar=sortGroup(all.filter(r=>routeGuide[r.id]===2));
+  const unassigned=sortGroup(all.filter(r=>!routeGuide[r.id]));
   return [...murthy,...divakar,...unassigned];
 }
 
