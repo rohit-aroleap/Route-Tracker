@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.075</title>
+<title>BLR Tracker · v1.076</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -226,6 +226,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
       <button class="nav-btn" onclick="showPage('suggest')">Pincode Suggester</button>
       <button class="nav-btn" onclick="showPage('route')">Route Planner</button>
       <button class="nav-btn" onclick="showPage('editdata')">Edit Data</button>
+      <button class="nav-btn" onclick="showPage('timing')">Timing</button>
       <button class="nav-btn" onclick="openTrashModal()" style="margin-top:8px;opacity:0.7;font-size:12px">🗑 Deleted Items <span id="trash-badge" style="background:#B71C1C;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;font-family:var(--mono);display:none">0</span></button>
     </div>
 
@@ -479,6 +480,13 @@ tr:hover td{background:rgba(0,0,0,0.015)}
       <div id="sheet-wrap"></div>
     </div>
 
+    <!-- Timing Page -->
+    <div class="page" id="page-timing">
+      <div class="page-title">Timing</div>
+      <div class="page-sub">Scheduled time vs actual technician progress for each customer</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px" id="timing-day-tabs"></div>
+      <div id="timing-wrap"></div>
+    </div>
 
   </main>
 </div>
@@ -524,7 +532,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.075';
+const APP_VERSION = 'v1.076';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -563,6 +571,7 @@ function renderActivePage(){
     case 'page-log':      if(typeof renderLog==='function') renderLog(); break;
     case 'page-route':    if(typeof renderRouteView==='function') renderRouteView(); break;
     case 'page-editdata': window._sheetShouldScroll=true; if(typeof renderSheet==='function') renderSheet(); break;
+    case 'page-timing':   if(typeof renderTimingView==='function') renderTimingView(); break;
     case 'page-suggest':  break;
   }
 }
@@ -1119,6 +1128,7 @@ function showPage(id){
   if(id==='suggest'){
     setTimeout(()=>{ initSugMapView(); },80);
   }
+  if(id==='timing') renderTimingView();
 }
 
 /* ─── STATS ─── */
@@ -2988,6 +2998,116 @@ try{
   const lastPage=localStorage.getItem('blr_active_page');
   if(lastPage && lastPage!=='schedule') setTimeout(()=>showPage(lastPage),100);
 }catch(e){}
+
+/* ─── TIMING VIEW ─── */
+let _timingDay=null;
+function renderTimingView(){
+  const tabs=document.getElementById('timing-day-tabs');
+  const wrap=document.getElementById('timing-wrap');
+  if(!tabs||!wrap) return;
+  if(!_timingDay) _timingDay=todayCalDay();
+
+  // Build day tabs
+  const allCalDates=[...new Set(db.map(r=>getEntryCalDate(r)).filter(d=>d!==null))].sort((a,b)=>a-b);
+  tabs.innerHTML=allCalDates.map(calDate=>{
+    const dp=dayInfo(calDate);
+    const active=calDate===_timingDay;
+    return `<button onclick="setTimingDay(${calDate})" style="padding:6px 14px;border-radius:20px;border:1.5px solid ${active?dp.color:'var(--border)'};background:${active?dp.bg:'var(--surface)'};color:${active?dp.color:'var(--ink2)'};font-size:12px;font-family:var(--sans);cursor:pointer;font-weight:${active?'600':'400'};white-space:nowrap">${dp.date}</button>`;
+  }).join('');
+
+  // Get stops for the selected day, sorted by scheduled time
+  const dayStops=db.filter(r=>getEntryCalDate(r)===_timingDay);
+  const sorted=[...dayStops].sort((a,b)=>(routeStopTimes[a.id]||'99:99').localeCompare(routeStopTimes[b.id]||'99:99'));
+
+  if(!sorted.length){
+    wrap.innerHTML='<div style="text-align:center;padding:40px;color:var(--ink3)">No entries for this date</div>';
+    return;
+  }
+
+  const TSTATUS={'not_started':{l:'Not Started',c:'#64748b',i:'⏳'},'on_my_way':{l:'On My Way',c:'#2563eb',i:'🚗'},'en_route':{l:'On My Way',c:'#2563eb',i:'🚗'},'reached':{l:'Reached',c:'#7c3aed',i:'📍'},'started':{l:'Started',c:'#b45309',i:'🔧'},'install_done':{l:'Install Done',c:'#2E7D32',i:'✅'},'maint_done':{l:'Maint Done',c:'#0369A1',i:'🔩'},'reinstall_done':{l:'Reinstall Done',c:'#047857',i:'🔄'},'completed':{l:'Done',c:'#2E7D32',i:'✅'},'cancelled':{l:'Cancelled',c:'#B71C1C',i:'❌'},'rescheduled':{l:'Rescheduled',c:'#6A1B9A',i:'📅'}};
+
+  let html=`<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
+      <th style="padding:8px 10px;text-align:left;font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--ink3);letter-spacing:0.05em">Customer</th>
+      <th style="padding:8px 10px;text-align:left;font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--ink3)">Tech</th>
+      <th style="padding:8px 10px;text-align:center;font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--ink3)">Scheduled</th>
+      <th style="padding:8px 10px;text-align:left;font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--ink3)">Timeline</th>
+      <th style="padding:8px 10px;text-align:center;font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--ink3)">Status</th>
+      <th style="padding:8px 10px;text-align:center;font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--ink3)">On Time?</th>
+    </tr></thead><tbody>`;
+
+  sorted.forEach(r=>{
+    const schedTime=routeStopTimes[r.id]||'';
+    const guide=routeGuide[r.id];
+    const gInfo=guide&&GUIDE_COLORS[guide]?GUIDE_COLORS[guide]:null;
+
+    // Build timeline from techStatusLog
+    const log=r.techStatusLog||[];
+    let timelineHtml='';
+    if(log.length){
+      timelineHtml=log.map(entry=>{
+        const ts=TSTATUS[entry.status]||{l:entry.status,c:'#999',i:'•'};
+        const t=new Date(entry.at);
+        const timeStr=t.toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true});
+        return `<div style="display:flex;align-items:center;gap:4px;margin:1px 0">
+          <span style="font-size:10px">${ts.i}</span>
+          <span style="font-size:10px;color:${ts.c};font-weight:500">${ts.l}</span>
+          <span style="font-size:9px;font-family:var(--mono);color:var(--ink3)">${timeStr}</span>
+        </div>`;
+      }).join('');
+    } else {
+      timelineHtml='<span style="font-size:10px;color:var(--ink3)">—</span>';
+    }
+
+    // Current status
+    const curStatus=r.techStatus||'not_started';
+    const curInfo=TSTATUS[curStatus]||{l:'Not Started',c:'#64748b',i:'⏳'};
+
+    // On-time check: compare scheduled time with the terminal status timestamp
+    let onTimeHtml='<span style="font-size:10px;color:var(--ink3)">—</span>';
+    const terminalStatuses=['install_done','maint_done','reinstall_done','completed'];
+    const terminalLog=log.filter(e=>terminalStatuses.includes(e.status));
+    if(schedTime && terminalLog.length){
+      const lastTerminal=terminalLog[terminalLog.length-1];
+      const doneTime=new Date(lastTerminal.at);
+      const [sh,sm]=schedTime.split(':').map(Number);
+      // Consider "on time" if completed within 1 hour of scheduled time
+      const schedDate=new Date(doneTime);
+      schedDate.setHours(sh,sm,0,0);
+      const diffMin=Math.round((doneTime-schedDate)/60000);
+      if(diffMin<=60){
+        onTimeHtml=`<span style="font-size:11px;font-weight:600;color:#2E7D32">✓ On time</span>`;
+        if(diffMin>0) onTimeHtml=`<span style="font-size:11px;font-weight:600;color:#2E7D32">✓ +${diffMin}m</span>`;
+        if(diffMin<0) onTimeHtml=`<span style="font-size:11px;font-weight:600;color:#2E7D32">✓ ${diffMin}m</span>`;
+      } else {
+        onTimeHtml=`<span style="font-size:11px;font-weight:600;color:#B71C1C">✗ +${diffMin}m</span>`;
+      }
+    } else if(curStatus==='cancelled'||curStatus==='rescheduled'){
+      const ci=TSTATUS[curStatus];
+      onTimeHtml=`<span style="font-size:10px;color:${ci.c}">${ci.i} ${ci.l}</span>`;
+    }
+
+    html+=`<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 10px">
+        <div style="font-weight:500;color:var(--ink)">${r.name||'—'}</div>
+        <div style="font-size:10px;font-family:var(--mono);color:var(--ink3)">${r.phone||''}</div>
+      </td>
+      <td style="padding:8px 10px">${gInfo?`<span style="font-size:10px;font-weight:600;color:${gInfo.color};background:${gInfo.bg};padding:2px 8px;border-radius:10px">${gInfo.label}</span>`:`<span style="font-size:10px;color:var(--ink3)">—</span>`}</td>
+      <td style="padding:8px 10px;text-align:center">${schedTime?`<span style="font-family:var(--mono);font-weight:600;color:var(--ink);font-size:12px">${fmtTime(schedTime)}</span>`:`<span style="font-size:10px;color:var(--ink3)">—</span>`}</td>
+      <td style="padding:8px 10px">${timelineHtml}</td>
+      <td style="padding:8px 10px;text-align:center"><span style="font-size:10px;font-weight:600;color:${curInfo.c}">${curInfo.i} ${curInfo.l}</span></td>
+      <td style="padding:8px 10px;text-align:center">${onTimeHtml}</td>
+    </tr>`;
+  });
+
+  html+=`</tbody></table>`;
+  wrap.innerHTML=html;
+}
+
+function setTimingDay(calDay){
+  _timingDay=calDay;
+  renderTimingView();
+}
 
 // ── Auto-update checker ──────────────────────────────────────────────────
 // Fetches the live page every 30s with a cache-busting param, extracts the
