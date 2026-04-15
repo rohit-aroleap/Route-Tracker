@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.067</title>
+<title>BLR Tracker · v1.068</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -207,7 +207,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
   <!-- ── SIDEBAR ── -->
   <aside class="sidebar">
     <div>
-      <div class="logo">Blr<span>Install</span><br>Tracker <span style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em">v1.059</span></div>
+      <div class="logo">Blr<span>Install</span><br>Tracker <span id="sidebar-version" style="font-size:11px;font-family:var(--mono);color:rgba(255,255,255,0.35);font-style:normal;letter-spacing:0.05em"></span></div>
     </div>
 
     <div class="stat-box">
@@ -503,7 +503,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.067';
+const APP_VERSION = 'v1.068';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -1063,7 +1063,7 @@ function showPage(id){
   try{ localStorage.setItem('blr_active_page', id); }catch(e){}
   if(id==='log') renderLog();
   if(id==='schedule') renderSchedule();
-  if(id==='editdata') renderSheet();
+  if(id==='editdata'){ window._sheetShouldScroll=true; renderSheet(); }
   if(id==='route'){
     if(!window.routeActiveDay){
       try{ const saved=localStorage.getItem('blr_route_day'); if(saved) window.routeActiveDay=parseInt(saved); }catch(e){}
@@ -2870,6 +2870,8 @@ updateStats();
 renderSchedule();
 renderLog();
 if(savedAt) setTimeout(()=>showSaveIndicator(),300);
+// Set sidebar version from APP_VERSION constant
+const _svEl=document.getElementById('sidebar-version'); if(_svEl) _svEl.textContent=APP_VERSION;
 initFirebase();
 
 // Flush any unsaved changes before page unload (refresh / close)
