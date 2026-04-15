@@ -176,13 +176,16 @@ const GUIDE_COLORS = {
 };
 
 const TECH_STATUSES = [
-  {value:'not_started', label:'Not Started',  icon:'⏳', color:'#64748b', bg:'#F1F5F9'},
-  {value:'on_my_way',   label:'On My Way',    icon:'🚗', color:'#2563eb', bg:'#DBEAFE'},
-  {value:'reached',     label:'Reached',      icon:'📍', color:'#7c3aed', bg:'#EDE9FE'},
-  {value:'started',     label:'Started',      icon:'🔧', color:'#b45309', bg:'#FEF3C7'},
-  {value:'completed',   label:'Completed',    icon:'✅', color:'#2E7D32', bg:'#E8F5E9'},
-  {value:'cancelled',   label:'Cancelled',    icon:'❌', color:'#B71C1C', bg:'#FCE4EC'},
-  {value:'rescheduled', label:'Rescheduled',  icon:'📅', color:'#6A1B9A', bg:'#EDE7F6'},
+  {value:'not_started',   label:'Not Started',         icon:'⏳', color:'#64748b', bg:'#F1F5F9'},
+  {value:'on_my_way',     label:'On My Way',           icon:'🚗', color:'#2563eb', bg:'#DBEAFE'},
+  {value:'reached',       label:'Reached',             icon:'📍', color:'#7c3aed', bg:'#EDE9FE'},
+  {value:'started',       label:'Started',             icon:'🔧', color:'#b45309', bg:'#FEF3C7'},
+  {value:'install_done',  label:'Installation Done',   icon:'✅', color:'#2E7D32', bg:'#E8F5E9'},
+  {value:'maint_done',    label:'Maintenance Done',    icon:'🔩', color:'#0369A1', bg:'#E0F2FE'},
+  {value:'reinstall_done',label:'Reinstallation Done', icon:'🔄', color:'#047857', bg:'#D1FAE5'},
+  {value:'completed',     label:'Completed',           icon:'✅', color:'#2E7D32', bg:'#E8F5E9'},
+  {value:'cancelled',     label:'Cancelled',           icon:'❌', color:'#B71C1C', bg:'#FCE4EC'},
+  {value:'rescheduled',   label:'Rescheduled',         icon:'📅', color:'#6A1B9A', bg:'#EDE7F6'},
 ];
 
 function techStatusInfo(s){
@@ -350,10 +353,12 @@ function renderStops(){
   }
 
   // Summary bar
-  const done=stops.filter(r=>r.techStatus==='completed').length;
-  const inProgress=stops.filter(r=>r.techStatus&&r.techStatus!=='not_started'&&r.techStatus!=='completed'&&r.techStatus!=='cancelled'&&r.techStatus!=='rescheduled').length;
+  const DONE_STATUSES=['completed','install_done','maint_done','reinstall_done'];
+  const SKIP_STATUSES=['cancelled','rescheduled'];
+  const done=stops.filter(r=>DONE_STATUSES.includes(r.techStatus)).length;
+  const inProgress=stops.filter(r=>r.techStatus&&r.techStatus!=='not_started'&&!DONE_STATUSES.includes(r.techStatus)&&!SKIP_STATUSES.includes(r.techStatus)).length;
   const pending=stops.filter(r=>!r.techStatus||r.techStatus==='not_started').length;
-  const cancelled=stops.filter(r=>r.techStatus==='cancelled'||r.techStatus==='rescheduled').length;
+  const cancelled=stops.filter(r=>SKIP_STATUSES.includes(r.techStatus)).length;
   summary.innerHTML=`<div class="summary-bar">
     <div class="summary-stat"><div class="val">${stops.length}</div><div class="lbl">Total</div></div>
     <div class="summary-stat"><div class="val" style="color:var(--accent3)">${done}</div><div class="lbl">Done</div></div>
@@ -368,7 +373,7 @@ function renderStops(){
 function renderCard(r, num){
   const time=routeStopTimes[r.id];
   const ts=r.techStatus||'';
-  const isTerminal=ts==='completed'||ts==='cancelled'||ts==='rescheduled';
+  const isTerminal=ts==='completed'||ts==='install_done'||ts==='maint_done'||ts==='reinstall_done'||ts==='cancelled'||ts==='rescheduled';
   const cardClass=isTerminal?'stop-card is-done':'stop-card';
 
   // Address line
@@ -416,7 +421,9 @@ function renderCard(r, num){
   } else if(ts==='reached'){
     buttonsHtml=`<button class="status-btn status-btn-primary" onclick="updateTechStatus(${r.id},'started')">🔧 Start Installation</button>`;
   } else if(ts==='started'){
-    buttonsHtml=`<button class="status-btn status-btn-success" onclick="updateTechStatus(${r.id},'completed')">✅ Completed</button>
+    buttonsHtml=`<button class="status-btn status-btn-success" onclick="updateTechStatus(${r.id},'install_done')">✅ Installation Done</button>
+      <button class="status-btn" style="background:#E0F2FE;color:#0369A1;border-color:#0369A1" onclick="updateTechStatus(${r.id},'maint_done')">🔩 Maintenance Done</button>
+      <button class="status-btn" style="background:#D1FAE5;color:#047857;border-color:#047857" onclick="updateTechStatus(${r.id},'reinstall_done')">🔄 Reinstallation Done</button>
       <div class="status-btn-row">
         <button class="status-btn status-btn-danger" onclick="updateTechStatus(${r.id},'cancelled')">❌ Cancel</button>
         <button class="status-btn status-btn-warn" onclick="updateTechStatus(${r.id},'rescheduled')">📅 Reschedule</button>
@@ -457,7 +464,9 @@ function updateTechStatus(id, newStatus){
   });
 
   // Terminal statuses update the main status field
-  if(newStatus==='completed') row.status='done';
+  if(newStatus==='install_done'||newStatus==='completed') row.status='done';
+  else if(newStatus==='maint_done') row.status='maintenance';
+  else if(newStatus==='reinstall_done') row.status='reinstall_done';
   else if(newStatus==='cancelled') row.status='cancelled';
   else if(newStatus==='rescheduled') row.status='rescheduled';
 

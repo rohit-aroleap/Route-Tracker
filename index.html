@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.072</title>
+<title>BLR Tracker · v1.073</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -104,6 +104,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
 .sc-rescheduled{background:#EDE7F6;color:#6A1B9A}
 .sc-return{background:#FFF7ED;color:#C2410C}
 .sc-maintenance{background:#E0F2FE;color:#0369A1}
+.sc-reinstall{background:#D1FAE5;color:#047857}
 /* legacy */
 .sc-confirmed{background:#E3F2FD;color:#1565C0}
 .sc-pending{background:#FFF8E1;color:#B45309}
@@ -276,10 +277,11 @@ tr:hover td{background:rgba(0,0,0,0.015)}
           <option value="paid">₹1 Paid</option>
           <option value="scheduled">Scheduled</option>
           <option value="done">Installation Done</option>
+          <option value="reinstall_done">Reinstallation Done</option>
+          <option value="maintenance">Maintenance Done</option>
           <option value="cancelled">Cancelled</option>
           <option value="rescheduled">Rescheduled</option>
           <option value="return">Return</option>
-          <option value="maintenance">Maintenance</option>
         </select>
       </div>
       <div class="tbl-wrap">
@@ -349,10 +351,11 @@ tr:hover td{background:rgba(0,0,0,0.015)}
               <option value="paid">₹1 Paid</option>
               <option value="scheduled">Installation Scheduled</option>
               <option value="done">Installation Done</option>
+              <option value="reinstall_done">Reinstallation Done</option>
+              <option value="maintenance">Maintenance Done</option>
               <option value="cancelled">Cancelled</option>
               <option value="rescheduled">Rescheduled</option>
               <option value="return">Return</option>
-              <option value="maintenance">Maintenance</option>
             </select>
           </div>
           <div class="form-group full">
@@ -515,7 +518,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.072';
+const APP_VERSION = 'v1.073';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -1037,13 +1040,14 @@ function dayChip(d){
   return `<span class="day-chip" style="background:${di.bg};color:${di.color}">${label}</span>`;
 }
 const STATUS_OPTIONS=[
-  {value:'paid',      label:'₹1 Paid',               cls:'sc-paid'},
-  {value:'scheduled', label:'Scheduled',              cls:'sc-scheduled'},
-  {value:'done',      label:'Installation Done',       cls:'sc-done'},
-  {value:'cancelled', label:'Cancelled',              cls:'sc-cancelled'},
-  {value:'rescheduled',label:'Rescheduled',           cls:'sc-rescheduled'},
-  {value:'return',    label:'Return',                 cls:'sc-return'},
-  {value:'maintenance',label:'Maintenance',           cls:'sc-maintenance'},
+  {value:'paid',           label:'₹1 Paid',               cls:'sc-paid'},
+  {value:'scheduled',      label:'Scheduled',              cls:'sc-scheduled'},
+  {value:'done',           label:'Installation Done',       cls:'sc-done'},
+  {value:'reinstall_done', label:'Reinstallation Done',    cls:'sc-reinstall'},
+  {value:'maintenance',    label:'Maintenance Done',       cls:'sc-maintenance'},
+  {value:'cancelled',      label:'Cancelled',              cls:'sc-cancelled'},
+  {value:'rescheduled',    label:'Rescheduled',            cls:'sc-rescheduled'},
+  {value:'return',         label:'Return',                 cls:'sc-return'},
 ];
 function statusChip(s){
   const opt=STATUS_OPTIONS.find(o=>o.value===s);
@@ -1149,12 +1153,14 @@ function normalizeStatus(s){
 
 // Color/label map used by the calendar
 const CAL_STATUSES=[
-  {value:'done',       color:'#2E7D32', bg:'#E8F5E9', label:'Installation Done'},
-  {value:'scheduled',  color:'#1565C0', bg:'#E3F2FD', label:'Scheduled'},
-  {value:'paid',       color:'#B45309', bg:'#FFF8E1', label:'₹1 Paid'},
-  {value:'rescheduled',color:'#6A1B9A', bg:'#EDE7F6', label:'Rescheduled'},
-  {value:'cancelled',  color:'#B71C1C', bg:'#FCE4EC', label:'Cancelled'},
-  {value:'return',     color:'#C2410C', bg:'#FFF7ED', label:'Return'},
+  {value:'done',           color:'#2E7D32', bg:'#E8F5E9', label:'Installation Done'},
+  {value:'reinstall_done', color:'#047857', bg:'#D1FAE5', label:'Reinstallation Done'},
+  {value:'maintenance',    color:'#0369A1', bg:'#E0F2FE', label:'Maintenance Done'},
+  {value:'scheduled',      color:'#1565C0', bg:'#E3F2FD', label:'Scheduled'},
+  {value:'paid',           color:'#B45309', bg:'#FFF8E1', label:'₹1 Paid'},
+  {value:'rescheduled',    color:'#6A1B9A', bg:'#EDE7F6', label:'Rescheduled'},
+  {value:'cancelled',      color:'#B71C1C', bg:'#FCE4EC', label:'Cancelled'},
+  {value:'return',         color:'#C2410C', bg:'#FFF7ED', label:'Return'},
 ];
 
 function toggleCalFilter(status){
@@ -2160,7 +2166,7 @@ function renderRouteStops(dayNum){
     const availList=routeAvailSlots[r.id]||[];
     const gAssigned=routeGuide[r.id];
     const colColor=gAssigned?GUIDE_COLORS[gAssigned].color:'#9CA3AF';
-    const TECH_STATUS_MAP={'not_started':{l:'Not Started',c:'#64748b',i:'⏳',bg:'#F1F5F9'},'on_my_way':{l:'On My Way',c:'#2563eb',i:'🚗',bg:'#DBEAFE'},'en_route':{l:'On My Way',c:'#2563eb',i:'🚗',bg:'#DBEAFE'},'reached':{l:'Reached',c:'#7c3aed',i:'📍',bg:'#EDE9FE'},'started':{l:'Started',c:'#b45309',i:'🔧',bg:'#FEF3C7'},'completed':{l:'Done',c:'#2E7D32',i:'✅',bg:'#E8F5E9'},'cancelled':{l:'Cancelled',c:'#B71C1C',i:'❌',bg:'#FCE4EC'},'rescheduled':{l:'Resched',c:'#6A1B9A',i:'📅',bg:'#EDE7F6'}};
+    const TECH_STATUS_MAP={'not_started':{l:'Not Started',c:'#64748b',i:'⏳',bg:'#F1F5F9'},'on_my_way':{l:'On My Way',c:'#2563eb',i:'🚗',bg:'#DBEAFE'},'en_route':{l:'On My Way',c:'#2563eb',i:'🚗',bg:'#DBEAFE'},'reached':{l:'Reached',c:'#7c3aed',i:'📍',bg:'#EDE9FE'},'started':{l:'Started',c:'#b45309',i:'🔧',bg:'#FEF3C7'},'install_done':{l:'Install Done',c:'#2E7D32',i:'✅',bg:'#E8F5E9'},'maint_done':{l:'Maint Done',c:'#0369A1',i:'🔩',bg:'#E0F2FE'},'reinstall_done':{l:'Reinstall Done',c:'#047857',i:'🔄',bg:'#D1FAE5'},'completed':{l:'Done',c:'#2E7D32',i:'✅',bg:'#E8F5E9'},'cancelled':{l:'Cancelled',c:'#B71C1C',i:'❌',bg:'#FCE4EC'},'rescheduled':{l:'Resched',c:'#6A1B9A',i:'📅',bg:'#EDE7F6'}};
     const techBadge=TECH_STATUS_MAP[r.techStatus||'not_started'];
     const pillsHtml=ROUTE_PRESETS.map(p=>{
       const isConf=confirmedTime===p.time;
@@ -2750,7 +2756,7 @@ function sheetRow(r){
   const statusOpts=`<option value=""${!nStatus||nStatus===''?' selected':''}>— Select —</option>`+STATUS_OPTIONS.map(o=>
     `<option value="${o.value}"${nStatus===o.value?' selected':''}>${o.label}</option>`).join('');
   const editBy=r._lastModifiedBy?r._lastModifiedBy.split('@')[0]:'';
-  const TECH_S={'not_started':{l:'Not Started',c:'#64748b',i:'⏳'},'on_my_way':{l:'On My Way',c:'#2563eb',i:'🚗'},'en_route':{l:'On My Way',c:'#2563eb',i:'🚗'},'reached':{l:'Reached',c:'#7c3aed',i:'📍'},'started':{l:'Started',c:'#b45309',i:'🔧'},'completed':{l:'Done',c:'#2E7D32',i:'✅'},'cancelled':{l:'Cancelled',c:'#B71C1C',i:'❌'},'rescheduled':{l:'Resched',c:'#6A1B9A',i:'📅'}};
+  const TECH_S={'not_started':{l:'Not Started',c:'#64748b',i:'⏳'},'on_my_way':{l:'On My Way',c:'#2563eb',i:'🚗'},'en_route':{l:'On My Way',c:'#2563eb',i:'🚗'},'reached':{l:'Reached',c:'#7c3aed',i:'📍'},'started':{l:'Started',c:'#b45309',i:'🔧'},'install_done':{l:'Install Done',c:'#2E7D32',i:'✅'},'maint_done':{l:'Maint Done',c:'#0369A1',i:'🔩'},'reinstall_done':{l:'Reinstall Done',c:'#047857',i:'🔄'},'completed':{l:'Done',c:'#2E7D32',i:'✅'},'cancelled':{l:'Cancelled',c:'#B71C1C',i:'❌'},'rescheduled':{l:'Resched',c:'#6A1B9A',i:'📅'}};
   const ts=r.techStatus&&r.techStatus!=='not_started'&&TECH_S[r.techStatus]?TECH_S[r.techStatus]:null;
   const tsLog=r.techStatusLog&&r.techStatusLog.length?r.techStatusLog[r.techStatusLog.length-1]:null;
   const tsTime=tsLog?new Date(tsLog.at).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}):'';
