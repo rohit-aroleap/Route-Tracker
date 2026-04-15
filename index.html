@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.074</title>
+<title>BLR Tracker · v1.075</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -104,6 +104,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
 .sc-rescheduled{background:#EDE7F6;color:#6A1B9A}
 .sc-return{background:#FFF7ED;color:#C2410C}
 .sc-maintenance{background:#E0F2FE;color:#0369A1}
+.sc-maint-done{background:#BAE6FD;color:#075985}
 .sc-reinstallation{background:#CCFBF1;color:#0F766E}
 .sc-reinstall{background:#D1FAE5;color:#047857}
 /* legacy */
@@ -278,9 +279,10 @@ tr:hover td{background:rgba(0,0,0,0.015)}
           <option value="paid">₹1 Paid</option>
           <option value="scheduled">Scheduled</option>
           <option value="reinstallation">Reinstallation</option>
+          <option value="maintenance">Maintenance</option>
           <option value="done">Installation Done</option>
           <option value="reinstall_done">Reinstallation Done</option>
-          <option value="maintenance">Maintenance Done</option>
+          <option value="maint_done">Maintenance Done</option>
           <option value="cancelled">Cancelled</option>
           <option value="rescheduled">Rescheduled</option>
           <option value="return">Return</option>
@@ -353,9 +355,10 @@ tr:hover td{background:rgba(0,0,0,0.015)}
               <option value="paid">₹1 Paid</option>
               <option value="scheduled">Installation Scheduled</option>
               <option value="reinstallation">Reinstallation</option>
+              <option value="maintenance">Maintenance</option>
               <option value="done">Installation Done</option>
               <option value="reinstall_done">Reinstallation Done</option>
-              <option value="maintenance">Maintenance Done</option>
+              <option value="maint_done">Maintenance Done</option>
               <option value="cancelled">Cancelled</option>
               <option value="rescheduled">Rescheduled</option>
               <option value="return">Return</option>
@@ -521,7 +524,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.074';
+const APP_VERSION = 'v1.075';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -1046,9 +1049,10 @@ const STATUS_OPTIONS=[
   {value:'paid',           label:'₹1 Paid',               cls:'sc-paid'},
   {value:'scheduled',      label:'Scheduled',              cls:'sc-scheduled'},
   {value:'reinstallation', label:'Reinstallation',         cls:'sc-reinstallation'},
+  {value:'maintenance',    label:'Maintenance',            cls:'sc-maintenance'},
   {value:'done',           label:'Installation Done',       cls:'sc-done'},
   {value:'reinstall_done', label:'Reinstallation Done',    cls:'sc-reinstall'},
-  {value:'maintenance',    label:'Maintenance Done',       cls:'sc-maintenance'},
+  {value:'maint_done',     label:'Maintenance Done',       cls:'sc-maint-done'},
   {value:'cancelled',      label:'Cancelled',              cls:'sc-cancelled'},
   {value:'rescheduled',    label:'Rescheduled',            cls:'sc-rescheduled'},
   {value:'return',         label:'Return',                 cls:'sc-return'},
@@ -1159,9 +1163,10 @@ function normalizeStatus(s){
 const CAL_STATUSES=[
   {value:'done',           color:'#2E7D32', bg:'#E8F5E9', label:'Installation Done'},
   {value:'reinstall_done', color:'#047857', bg:'#D1FAE5', label:'Reinstallation Done'},
-  {value:'maintenance',    color:'#0369A1', bg:'#E0F2FE', label:'Maintenance Done'},
+  {value:'maint_done',     color:'#075985', bg:'#BAE6FD', label:'Maintenance Done'},
   {value:'scheduled',      color:'#1565C0', bg:'#E3F2FD', label:'Scheduled'},
   {value:'reinstallation', color:'#0F766E', bg:'#CCFBF1', label:'Reinstallation'},
+  {value:'maintenance',    color:'#0369A1', bg:'#E0F2FE', label:'Maintenance'},
   {value:'paid',           color:'#B45309', bg:'#FFF8E1', label:'₹1 Paid'},
   {value:'rescheduled',    color:'#6A1B9A', bg:'#EDE7F6', label:'Rescheduled'},
   {value:'cancelled',      color:'#B71C1C', bg:'#FCE4EC', label:'Cancelled'},

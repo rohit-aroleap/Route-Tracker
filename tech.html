@@ -465,7 +465,7 @@ function updateTechStatus(id, newStatus){
 
   // Terminal statuses update the main status field
   if(newStatus==='install_done'||newStatus==='completed') row.status='done';
-  else if(newStatus==='maint_done') row.status='maintenance';
+  else if(newStatus==='maint_done') row.status='maint_done';
   else if(newStatus==='reinstall_done') row.status='reinstall_done';
   else if(newStatus==='cancelled') row.status='cancelled';
   else if(newStatus==='rescheduled') row.status='rescheduled';
