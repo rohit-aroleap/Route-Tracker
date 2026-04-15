@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.068</title>
+<title>BLR Tracker · v1.069</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -503,7 +503,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.068';
+const APP_VERSION = 'v1.069';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -2658,8 +2658,9 @@ function getEntryCalDate(r){
 }
 
 function sheetRow(r){
-  const statusOpts=STATUS_OPTIONS.map(o=>
-    `<option value="${o.value}"${normalizeStatus(r.status)===o.value?' selected':''}>${o.label}</option>`).join('');
+  const nStatus=normalizeStatus(r.status);
+  const statusOpts=`<option value=""${!nStatus||nStatus===''?' selected':''}>— Select —</option>`+STATUS_OPTIONS.map(o=>
+    `<option value="${o.value}"${nStatus===o.value?' selected':''}>${o.label}</option>`).join('');
   const editBy=r._lastModifiedBy?r._lastModifiedBy.split('@')[0]:'';
   const TECH_S={'not_started':{l:'Not Started',c:'#64748b',i:'⏳'},'on_my_way':{l:'On My Way',c:'#2563eb',i:'🚗'},'en_route':{l:'On My Way',c:'#2563eb',i:'🚗'},'reached':{l:'Reached',c:'#7c3aed',i:'📍'},'started':{l:'Started',c:'#b45309',i:'🔧'},'completed':{l:'Done',c:'#2E7D32',i:'✅'},'cancelled':{l:'Cancelled',c:'#B71C1C',i:'❌'},'rescheduled':{l:'Resched',c:'#6A1B9A',i:'📅'}};
   const ts=r.techStatus&&r.techStatus!=='not_started'&&TECH_S[r.techStatus]?TECH_S[r.techStatus]:null;
@@ -2831,7 +2832,7 @@ function addSheetRow(calDate){
   const entry={id:nextId++,name:'',phone:'',area:'',pin:'',
     date:calDate+' Apr',
     day:planDay?planDay.day:null,
-    status:'confirmed',zone:'',notes:''};
+    status:'',zone:'',notes:''};
   db.push(entry);
   _dirtyRows.add(entry.id);
   updateStats();
