@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.083</title>
+<title>BLR Tracker · v1.084</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -532,7 +532,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.083';
+const APP_VERSION = 'v1.084';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -2264,13 +2264,20 @@ function renderRouteStops(dayNum){
         setTimeout(()=>renderRouteView(),50);
       },
       onEnd:function(){
-        // Persist within-column reorder
+        // Persist within-column reorder and update routeOrders
+        const newOrder=[];
         kanbanCols.forEach(col=>{
           const el=document.getElementById(col.id);
           if(!el) return;
           const ids=[...el.querySelectorAll('.route-stop')].map(e=>parseInt(e.dataset.id));
           ids.forEach(id=>{ if(col.guide) routeGuide[id]=col.guide; else delete routeGuide[id]; });
+          newOrder.push(...ids);
         });
+        // Re-sort: confirmed-time stops by time, then rest in drag order
+        const confirmed=newOrder.filter(id=>routeTimeConfirmed[id]&&routeStopTimes[id]);
+        const rest=newOrder.filter(id=>!(routeTimeConfirmed[id]&&routeStopTimes[id]));
+        confirmed.sort((a,b)=>(routeStopTimes[a]||'').localeCompare(routeStopTimes[b]||''));
+        routeOrders[dayNum]=[...confirmed,...rest];
         scheduleSave();
       }
     });
