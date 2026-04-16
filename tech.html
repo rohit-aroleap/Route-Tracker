@@ -121,6 +121,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14p
   <div style="font-size:48px;margin-bottom:12px">⚠️</div>
   <h1 id="error-title">Invalid Link</h1>
   <p id="error-msg">This link is missing required parameters. Please ask your admin for a valid link.</p>
+  <button id="retry-btn" onclick="location.reload()" style="display:none;margin-top:16px;padding:10px 28px;border:none;border-radius:10px;background:#2563eb;color:#fff;font-size:15px;font-weight:600;cursor:pointer">🔄 Retry</button>
 </div>
 
 <!-- Main app -->
@@ -136,6 +137,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14p
     <div class="sync-dot" id="sync-dot" style="background:rgba(255,200,50,0.9)" title="Connecting..."></div>
   </div>
 
+  <div id="offline-banner" style="display:none;background:#FEF3C7;color:#92400E;text-align:center;padding:8px 14px;font-size:12px;font-weight:600;font-family:var(--mono)">📡 You're offline — changes will sync when connected</div>
   <div id="summary"></div>
   <div id="stop-list" class="stop-list"></div>
 </div>
@@ -258,75 +260,137 @@ if(!guideNum || !calDay || !GUIDE_COLORS[guideNum]){
   initFirebase();
 }
 
+/* ─── CACHE ─── */
+const CACHE_KEY='blr_tech_'+guideNum+'_'+calDay;
+function saveToCache(){
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      db:db, routeGuide:routeGuide, routeStopTimes:routeStopTimes, routeOrders:routeOrders, ts:Date.now()
+    }));
+  } catch(e){}
+}
+function loadFromCache(){
+  try {
+    const raw=localStorage.getItem(CACHE_KEY);
+    if(!raw) return false;
+    const c=JSON.parse(raw);
+    if(!c.db||!c.db.length) return false;
+    // Use cache if less than 24 hours old
+    if(Date.now()-c.ts > 86400000) return false;
+    db=c.db;
+    if(c.routeGuide) Object.assign(routeGuide, c.routeGuide);
+    if(c.routeStopTimes) Object.assign(routeStopTimes, c.routeStopTimes);
+    if(c.routeOrders) Object.assign(routeOrders, c.routeOrders);
+    return true;
+  } catch(e){ return false; }
+}
+
 /* ─── FIREBASE ─── */
+let _authRetries=0;
+const MAX_RETRIES=3;
+
+function showApp(){
+  document.getElementById('loading-screen').style.display='none';
+  document.getElementById('app').style.display='block';
+}
+function showError(title, msg, showRetry){
+  document.getElementById('loading-screen').style.display='none';
+  document.getElementById('error-screen').style.display='flex';
+  document.getElementById('error-title').textContent=title;
+  document.getElementById('error-msg').textContent=msg;
+  if(showRetry) document.getElementById('retry-btn').style.display='inline-block';
+}
+
 function initFirebase(){
   try {
-    firebase.initializeApp(FIREBASE_CONFIG);
+    if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     const db2 = firebase.database();
     _fbRef = db2.ref(FB_PATH);
 
-    firebase.auth().signInAnonymously().then(()=>{
-      // Rows listener
-      const rowsRef = _fbRef.child('rows');
-      rowsRef.on('child_added', snap=>{
-        const r=snap.val(); if(!r||!r.id) return;
-        const idx=db.findIndex(x=>x.id===r.id);
-        if(idx<0) db.push(r); else db[idx]=r;
-        renderStops();
-      });
-      rowsRef.on('child_changed', snap=>{
-        const r=snap.val(); if(!r||!r.id) return;
-        const idx=db.findIndex(x=>x.id===r.id);
-        if(idx>=0) db[idx]=r; else db.push(r);
-        renderStops();
-      });
-      rowsRef.on('child_removed', snap=>{
-        const r=snap.val(); if(!r||!r.id) return;
-        const idx=db.findIndex(x=>x.id===r.id);
-        if(idx>=0) db.splice(idx,1);
-        renderStops();
-      });
+    // Load cached data immediately so page isn't blank
+    const hadCache = loadFromCache();
+    if(hadCache){
+      showApp();
+      renderStops();
+    }
 
-      // Meta listener
-      _fbRef.child('meta').on('value', snap=>{
-        const m=snap.val(); if(!m) return;
-        if(m.routeGuide){ routeGuide={}; Object.assign(routeGuide,m.routeGuide); }
-        if(m.routeStopTimes){ routeStopTimes={}; Object.assign(routeStopTimes,m.routeStopTimes); }
-        if(m.routeOrders){ routeOrders={}; Object.assign(routeOrders,m.routeOrders); }
-        renderStops();
-      });
-
-      // Connection status
-      db2.ref('.info/connected').on('value', snap=>{
-        const dot=document.getElementById('sync-dot');
-        if(snap.val()){
-          dot.style.background='rgba(100,220,120,0.9)';
-          dot.classList.remove('pulsing');
-          dot.title='Connected';
-        } else {
-          dot.style.background='rgba(220,100,80,0.9)';
-          dot.classList.remove('pulsing');
-          dot.title='Offline';
-        }
-      });
-
-      // Show app
-      document.getElementById('loading-screen').style.display='none';
-      document.getElementById('app').style.display='block';
-
-    }).catch(err=>{
-      document.getElementById('loading-screen').style.display='none';
-      document.getElementById('error-screen').style.display='flex';
-      document.getElementById('error-title').textContent='Connection Failed';
-      document.getElementById('error-msg').textContent='Could not connect: '+err.message+'. Ask your admin to enable Anonymous Auth in Firebase Console.';
-    });
+    attemptAuth(db2, hadCache);
 
   } catch(e){
-    document.getElementById('loading-screen').style.display='none';
-    document.getElementById('error-screen').style.display='flex';
-    document.getElementById('error-title').textContent='Error';
-    document.getElementById('error-msg').textContent=e.message;
+    if(!document.getElementById('app').style.display||document.getElementById('app').style.display==='none'){
+      showError('Error', e.message, true);
+    }
   }
+}
+
+function attemptAuth(db2, hadCache){
+  firebase.auth().signInAnonymously().then(()=>{
+    if(!hadCache) showApp();
+    setupListeners(db2);
+  }).catch(err=>{
+    _authRetries++;
+    if(_authRetries < MAX_RETRIES){
+      // Retry after 2s, 4s, 6s
+      setTimeout(()=>attemptAuth(db2, hadCache), _authRetries * 2000);
+      if(!hadCache){
+        document.querySelector('#loading-screen p').textContent='Retrying connection ('+_authRetries+'/'+MAX_RETRIES+')...';
+      }
+    } else {
+      if(!hadCache){
+        showError('Connection Failed', 'Could not connect after '+MAX_RETRIES+' attempts. Check your internet connection and try again.', true);
+      } else {
+        toast('⚠️ Offline — showing cached data');
+      }
+    }
+  });
+}
+
+function setupListeners(db2){
+  const rowsRef = _fbRef.child('rows');
+  rowsRef.on('child_added', snap=>{
+    const r=snap.val(); if(!r||!r.id) return;
+    const idx=db.findIndex(x=>x.id===r.id);
+    if(idx<0) db.push(r); else db[idx]=r;
+    renderStops(); saveToCache();
+  });
+  rowsRef.on('child_changed', snap=>{
+    const r=snap.val(); if(!r||!r.id) return;
+    const idx=db.findIndex(x=>x.id===r.id);
+    if(idx>=0) db[idx]=r; else db.push(r);
+    renderStops(); saveToCache();
+  });
+  rowsRef.on('child_removed', snap=>{
+    const r=snap.val(); if(!r||!r.id) return;
+    const idx=db.findIndex(x=>x.id===r.id);
+    if(idx>=0) db.splice(idx,1);
+    renderStops(); saveToCache();
+  });
+
+  // Meta listener
+  _fbRef.child('meta').on('value', snap=>{
+    const m=snap.val(); if(!m) return;
+    if(m.routeGuide){ routeGuide={}; Object.assign(routeGuide,m.routeGuide); }
+    if(m.routeStopTimes){ routeStopTimes={}; Object.assign(routeStopTimes,m.routeStopTimes); }
+    if(m.routeOrders){ routeOrders={}; Object.assign(routeOrders,m.routeOrders); }
+    renderStops(); saveToCache();
+  });
+
+  // Connection status + offline banner
+  db2.ref('.info/connected').on('value', snap=>{
+    const dot=document.getElementById('sync-dot');
+    const banner=document.getElementById('offline-banner');
+    if(snap.val()){
+      dot.style.background='rgba(100,220,120,0.9)';
+      dot.classList.remove('pulsing');
+      dot.title='Connected';
+      banner.style.display='none';
+    } else {
+      dot.style.background='rgba(220,100,80,0.9)';
+      dot.classList.remove('pulsing');
+      dot.title='Offline';
+      banner.style.display='block';
+    }
+  });
 }
 
 /* ─── RENDER ─── */
@@ -496,6 +560,7 @@ function updateTechStatus(id, newStatus){
   });
 
   renderStops();
+  saveToCache();
 }
 
 /* ─── HELPERS ─── */
