@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.091</title>
+<title>BLR Tracker · v1.095</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -538,7 +538,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.094';
+const APP_VERSION = 'v1.095';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -3182,7 +3182,10 @@ function setTimingDay(calDay){
         if(!html) return;
         const m=html.match(/<title>BLR Tracker\s*·\s*(v[\d.]+)<\/title>/);
         if(m && m[1] && m[1]!==APP_VERSION && !window._updateBannerDismissed){
-          showUpdateBanner(m[1]);
+          // Only show if fetched version is newer (higher number)
+          const fetchedNum=parseFloat(m[1].replace('v',''));
+          const currentNum=parseFloat(APP_VERSION.replace('v',''));
+          if(fetchedNum > currentNum) showUpdateBanner(m[1]);
         }
       })
       .catch(()=>{}); // silently fail on network errors
