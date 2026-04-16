@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.090</title>
+<title>BLR Tracker · v1.091</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -532,7 +532,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.090';
+const APP_VERSION = 'v1.091';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -2227,7 +2227,7 @@ function renderRouteStops(dayNum){
           <span style="font-size:11px;font-weight:700;color:${c.color};font-family:var(--mono);letter-spacing:0.02em">${c.label}</span>
           <span style="font-size:9px;background:${c.color};color:#fff;padding:1px 5px;border-radius:8px;font-weight:600">${c.stops.length}</span>
           <span style="flex:1"></span>
-          ${c.guide?`<button onclick="shareTechLink(${c.guide},${dayNum})" title="Copy tech link for WhatsApp" style="font-size:10px;padding:2px 6px;border-radius:var(--r);border:1px solid ${c.color}33;background:${c.bg};color:${c.color};cursor:pointer;font-family:var(--mono);display:flex;align-items:center;gap:3px;white-space:nowrap"><span style="font-size:12px">📱</span></button><button onclick="copyGuideSchedule(${c.guide},${dayNum})" title="Copy schedule for WhatsApp" style="font-size:10px;padding:2px 6px;border-radius:var(--r);border:1px solid ${c.color}33;background:${c.bg};color:${c.color};cursor:pointer;font-family:var(--mono);display:flex;align-items:center;gap:3px;white-space:nowrap"><span style="font-size:12px">📋</span> Copy</button>`:''}
+          ${c.guide?`<button onclick="sortGuideByTime(${c.guide},${dayNum})" title="Sort by confirmed time" style="font-size:10px;padding:2px 6px;border-radius:var(--r);border:1px solid ${c.color}33;background:${c.bg};color:${c.color};cursor:pointer;font-family:var(--mono);display:flex;align-items:center;gap:3px;white-space:nowrap"><span style="font-size:12px">🕐</span></button><button onclick="shareTechLink(${c.guide},${dayNum})" title="Copy tech link for WhatsApp" style="font-size:10px;padding:2px 6px;border-radius:var(--r);border:1px solid ${c.color}33;background:${c.bg};color:${c.color};cursor:pointer;font-family:var(--mono);display:flex;align-items:center;gap:3px;white-space:nowrap"><span style="font-size:12px">📱</span></button><button onclick="copyGuideSchedule(${c.guide},${dayNum})" title="Copy schedule for WhatsApp" style="font-size:10px;padding:2px 6px;border-radius:var(--r);border:1px solid ${c.color}33;background:${c.bg};color:${c.color};cursor:pointer;font-family:var(--mono);display:flex;align-items:center;gap:3px;white-space:nowrap"><span style="font-size:12px">📋</span> Copy</button>`:''}
         </div>
         <div id="${c.id}" style="flex:1;overflow-y:auto;min-height:0">${c.stops.map((r,i)=>cardHtml(r,i)).join('')}</div>
       </div>`
@@ -2467,6 +2467,26 @@ function drawRouteMap(dayNum){
   }
 
   setTimeout(()=>routeMap.invalidateSize(),100);
+}
+
+function sortGuideByTime(guide, dayNum){
+  if(!routeOrders[dayNum]) return;
+  // Get IDs for this guide, split into timed and untimed
+  const guideIds=routeOrders[dayNum].filter(id=>routeGuide[id]===guide);
+  const otherIds=routeOrders[dayNum].filter(id=>routeGuide[id]!==guide);
+  const timed=guideIds.filter(id=>routeStopTimes[id]);
+  const untimed=guideIds.filter(id=>!routeStopTimes[id]);
+  timed.sort((a,b)=>(routeStopTimes[a]||'').localeCompare(routeStopTimes[b]||''));
+  // Rebuild routeOrders: sorted guide stops in their original position block, others unchanged
+  const newOrder=[];
+  const sortedGuide=[...timed,...untimed];
+  routeOrders[dayNum].forEach(id=>{
+    if(routeGuide[id]===guide) newOrder.push(sortedGuide.shift());
+    else newOrder.push(id);
+  });
+  routeOrders[dayNum]=newOrder;
+  renderRouteView();
+  scheduleSave();
 }
 
 function optimiseRoute(dayNum){
