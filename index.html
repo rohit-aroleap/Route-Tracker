@@ -107,6 +107,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
 .sc-maint-done{background:#BAE6FD;color:#075985}
 .sc-reinstallation{background:#CCFBF1;color:#0F766E}
 .sc-reinstall{background:#D1FAE5;color:#047857}
+.sc-uninstall-done{background:#F3E8FF;color:#9333EA}
 /* legacy */
 .sc-confirmed{background:#E3F2FD;color:#1565C0}
 .sc-pending{background:#FFF8E1;color:#B45309}
@@ -284,6 +285,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
           <option value="done">Installation Done</option>
           <option value="reinstall_done">Reinstallation Done</option>
           <option value="maint_done">Maintenance Done</option>
+          <option value="uninstall_done">Uninstallation Done</option>
           <option value="cancelled">Cancelled</option>
           <option value="rescheduled">Rescheduled</option>
           <option value="return">Return</option>
@@ -360,6 +362,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
               <option value="done">Installation Done</option>
               <option value="reinstall_done">Reinstallation Done</option>
               <option value="maint_done">Maintenance Done</option>
+              <option value="uninstall_done">Uninstallation Done</option>
               <option value="cancelled">Cancelled</option>
               <option value="rescheduled">Rescheduled</option>
               <option value="return">Return</option>
@@ -532,7 +535,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.091';
+const APP_VERSION = 'v1.092';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -1062,6 +1065,7 @@ const STATUS_OPTIONS=[
   {value:'done',           label:'Installation Done',       cls:'sc-done'},
   {value:'reinstall_done', label:'Reinstallation Done',    cls:'sc-reinstall'},
   {value:'maint_done',     label:'Maintenance Done',       cls:'sc-maint-done'},
+  {value:'uninstall_done', label:'Uninstallation Done',    cls:'sc-uninstall-done'},
   {value:'cancelled',      label:'Cancelled',              cls:'sc-cancelled'},
   {value:'rescheduled',    label:'Rescheduled',            cls:'sc-rescheduled'},
   {value:'return',         label:'Return',                 cls:'sc-return'},
@@ -1174,6 +1178,7 @@ const CAL_STATUSES=[
   {value:'done',           color:'#2E7D32', bg:'#E8F5E9', label:'Installation Done'},
   {value:'reinstall_done', color:'#047857', bg:'#D1FAE5', label:'Reinstallation Done'},
   {value:'maint_done',     color:'#075985', bg:'#BAE6FD', label:'Maintenance Done'},
+  {value:'uninstall_done', color:'#9333EA', bg:'#F3E8FF', label:'Uninstallation Done'},
   {value:'scheduled',      color:'#1565C0', bg:'#E3F2FD', label:'Scheduled'},
   {value:'reinstallation', color:'#0F766E', bg:'#CCFBF1', label:'Reinstallation'},
   {value:'maintenance',    color:'#0369A1', bg:'#E0F2FE', label:'Maintenance'},
@@ -2174,7 +2179,7 @@ function renderRouteStops(dayNum){
     const availList=routeAvailSlots[r.id]||[];
     const gAssigned=routeGuide[r.id];
     const colColor=gAssigned?GUIDE_COLORS[gAssigned].color:'#9CA3AF';
-    const TECH_STATUS_MAP={'not_started':{l:'Not Started',c:'#64748b',i:'⏳',bg:'#F1F5F9'},'on_my_way':{l:'On My Way',c:'#2563eb',i:'🚗',bg:'#DBEAFE'},'en_route':{l:'On My Way',c:'#2563eb',i:'🚗',bg:'#DBEAFE'},'reached':{l:'Reached',c:'#7c3aed',i:'📍',bg:'#EDE9FE'},'started':{l:'Started',c:'#b45309',i:'🔧',bg:'#FEF3C7'},'install_done':{l:'Install Done',c:'#2E7D32',i:'✅',bg:'#E8F5E9'},'maint_done':{l:'Maint Done',c:'#0369A1',i:'🔩',bg:'#E0F2FE'},'reinstall_done':{l:'Reinstall Done',c:'#047857',i:'🔄',bg:'#D1FAE5'},'completed':{l:'Done',c:'#2E7D32',i:'✅',bg:'#E8F5E9'},'cancelled':{l:'Cancelled',c:'#B71C1C',i:'❌',bg:'#FCE4EC'},'rescheduled':{l:'Resched',c:'#6A1B9A',i:'📅',bg:'#EDE7F6'}};
+    const TECH_STATUS_MAP={'not_started':{l:'Not Started',c:'#64748b',i:'⏳',bg:'#F1F5F9'},'on_my_way':{l:'On My Way',c:'#2563eb',i:'🚗',bg:'#DBEAFE'},'en_route':{l:'On My Way',c:'#2563eb',i:'🚗',bg:'#DBEAFE'},'reached':{l:'Reached',c:'#7c3aed',i:'📍',bg:'#EDE9FE'},'started':{l:'Started',c:'#b45309',i:'🔧',bg:'#FEF3C7'},'install_done':{l:'Install Done',c:'#2E7D32',i:'✅',bg:'#E8F5E9'},'maint_done':{l:'Maint Done',c:'#0369A1',i:'🔩',bg:'#E0F2FE'},'reinstall_done':{l:'Reinstall Done',c:'#047857',i:'🔄',bg:'#D1FAE5'},'uninstall_done':{l:'Uninstall Done',c:'#9333EA',i:'🔌',bg:'#F3E8FF'},'completed':{l:'Done',c:'#2E7D32',i:'✅',bg:'#E8F5E9'},'cancelled':{l:'Cancelled',c:'#B71C1C',i:'❌',bg:'#FCE4EC'},'rescheduled':{l:'Resched',c:'#6A1B9A',i:'📅',bg:'#EDE7F6'}};
     const techBadge=TECH_STATUS_MAP[r.techStatus||'not_started'];
     const pillsHtml=ROUTE_PRESETS.map(p=>{
       const isConf=confirmedTime===p.time;
@@ -2798,7 +2803,7 @@ function sheetRow(r){
   const statusOpts=`<option value=""${!nStatus||nStatus===''?' selected':''}>— Select —</option>`+STATUS_OPTIONS.map(o=>
     `<option value="${o.value}"${nStatus===o.value?' selected':''}>${o.label}</option>`).join('');
   const editBy=r._lastModifiedBy?r._lastModifiedBy.split('@')[0]:'';
-  const TECH_S={'not_started':{l:'Not Started',c:'#64748b',i:'⏳'},'on_my_way':{l:'On My Way',c:'#2563eb',i:'🚗'},'en_route':{l:'On My Way',c:'#2563eb',i:'🚗'},'reached':{l:'Reached',c:'#7c3aed',i:'📍'},'started':{l:'Started',c:'#b45309',i:'🔧'},'install_done':{l:'Install Done',c:'#2E7D32',i:'✅'},'maint_done':{l:'Maint Done',c:'#0369A1',i:'🔩'},'reinstall_done':{l:'Reinstall Done',c:'#047857',i:'🔄'},'completed':{l:'Done',c:'#2E7D32',i:'✅'},'cancelled':{l:'Cancelled',c:'#B71C1C',i:'❌'},'rescheduled':{l:'Resched',c:'#6A1B9A',i:'📅'}};
+  const TECH_S={'not_started':{l:'Not Started',c:'#64748b',i:'⏳'},'on_my_way':{l:'On My Way',c:'#2563eb',i:'🚗'},'en_route':{l:'On My Way',c:'#2563eb',i:'🚗'},'reached':{l:'Reached',c:'#7c3aed',i:'📍'},'started':{l:'Started',c:'#b45309',i:'🔧'},'install_done':{l:'Install Done',c:'#2E7D32',i:'✅'},'maint_done':{l:'Maint Done',c:'#0369A1',i:'🔩'},'reinstall_done':{l:'Reinstall Done',c:'#047857',i:'🔄'},'uninstall_done':{l:'Uninstall Done',c:'#9333EA',i:'🔌'},'completed':{l:'Done',c:'#2E7D32',i:'✅'},'cancelled':{l:'Cancelled',c:'#B71C1C',i:'❌'},'rescheduled':{l:'Resched',c:'#6A1B9A',i:'📅'}};
   const ts=r.techStatus&&r.techStatus!=='not_started'&&TECH_S[r.techStatus]?TECH_S[r.techStatus]:null;
   const tsLog=r.techStatusLog&&r.techStatusLog.length?r.techStatusLog[r.techStatusLog.length-1]:null;
   const tsTime=tsLog?new Date(tsLog.at).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}):'';
@@ -3048,7 +3053,7 @@ function renderTimingView(){
     return;
   }
 
-  const TSTATUS={'not_started':{l:'Not Started',c:'#64748b',i:'⏳'},'on_my_way':{l:'On My Way',c:'#2563eb',i:'🚗'},'en_route':{l:'On My Way',c:'#2563eb',i:'🚗'},'reached':{l:'Reached',c:'#7c3aed',i:'📍'},'started':{l:'Started',c:'#b45309',i:'🔧'},'install_done':{l:'Install Done',c:'#2E7D32',i:'✅'},'maint_done':{l:'Maint Done',c:'#0369A1',i:'🔩'},'reinstall_done':{l:'Reinstall Done',c:'#047857',i:'🔄'},'completed':{l:'Done',c:'#2E7D32',i:'✅'},'cancelled':{l:'Cancelled',c:'#B71C1C',i:'❌'},'rescheduled':{l:'Rescheduled',c:'#6A1B9A',i:'📅'}};
+  const TSTATUS={'not_started':{l:'Not Started',c:'#64748b',i:'⏳'},'on_my_way':{l:'On My Way',c:'#2563eb',i:'🚗'},'en_route':{l:'On My Way',c:'#2563eb',i:'🚗'},'reached':{l:'Reached',c:'#7c3aed',i:'📍'},'started':{l:'Started',c:'#b45309',i:'🔧'},'install_done':{l:'Install Done',c:'#2E7D32',i:'✅'},'maint_done':{l:'Maint Done',c:'#0369A1',i:'🔩'},'reinstall_done':{l:'Reinstall Done',c:'#047857',i:'🔄'},'uninstall_done':{l:'Uninstall Done',c:'#9333EA',i:'🔌'},'completed':{l:'Done',c:'#2E7D32',i:'✅'},'cancelled':{l:'Cancelled',c:'#B71C1C',i:'❌'},'rescheduled':{l:'Rescheduled',c:'#6A1B9A',i:'📅'}};
 
   let html=`<table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead><tr style="background:var(--surface2);border-bottom:2px solid var(--border)">
@@ -3089,7 +3094,7 @@ function renderTimingView(){
 
     // On-time check: compare scheduled time with the terminal status timestamp
     let onTimeHtml='<span style="font-size:10px;color:var(--ink3)">—</span>';
-    const terminalStatuses=['install_done','maint_done','reinstall_done','completed'];
+    const terminalStatuses=['install_done','maint_done','reinstall_done','uninstall_done','completed'];
     const terminalLog=log.filter(e=>terminalStatuses.includes(e.status));
     if(schedTime && terminalLog.length){
       const lastTerminal=terminalLog[terminalLog.length-1];
