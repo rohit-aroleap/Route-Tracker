@@ -107,6 +107,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
 .sc-maint-done{background:#BAE6FD;color:#075985}
 .sc-reinstallation{background:#CCFBF1;color:#0F766E}
 .sc-reinstall{background:#D1FAE5;color:#047857}
+.sc-uninstallation{background:#EDE9FE;color:#7C3AED}
 .sc-uninstall-done{background:#F3E8FF;color:#9333EA}
 /* legacy */
 .sc-confirmed{background:#E3F2FD;color:#1565C0}
@@ -282,6 +283,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
           <option value="scheduled">Scheduled</option>
           <option value="reinstallation">Reinstallation</option>
           <option value="maintenance">Maintenance</option>
+          <option value="uninstallation">Uninstallation</option>
           <option value="done">Installation Done</option>
           <option value="reinstall_done">Reinstallation Done</option>
           <option value="maint_done">Maintenance Done</option>
@@ -359,6 +361,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
               <option value="scheduled">Installation Scheduled</option>
               <option value="reinstallation">Reinstallation</option>
               <option value="maintenance">Maintenance</option>
+              <option value="uninstallation">Uninstallation</option>
               <option value="done">Installation Done</option>
               <option value="reinstall_done">Reinstallation Done</option>
               <option value="maint_done">Maintenance Done</option>
@@ -535,7 +538,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.092';
+const APP_VERSION = 'v1.093';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -1062,6 +1065,7 @@ const STATUS_OPTIONS=[
   {value:'scheduled',      label:'Scheduled',              cls:'sc-scheduled'},
   {value:'reinstallation', label:'Reinstallation',         cls:'sc-reinstallation'},
   {value:'maintenance',    label:'Maintenance',            cls:'sc-maintenance'},
+  {value:'uninstallation', label:'Uninstallation',          cls:'sc-uninstallation'},
   {value:'done',           label:'Installation Done',       cls:'sc-done'},
   {value:'reinstall_done', label:'Reinstallation Done',    cls:'sc-reinstall'},
   {value:'maint_done',     label:'Maintenance Done',       cls:'sc-maint-done'},
@@ -1181,6 +1185,7 @@ const CAL_STATUSES=[
   {value:'uninstall_done', color:'#9333EA', bg:'#F3E8FF', label:'Uninstallation Done'},
   {value:'scheduled',      color:'#1565C0', bg:'#E3F2FD', label:'Scheduled'},
   {value:'reinstallation', color:'#0F766E', bg:'#CCFBF1', label:'Reinstallation'},
+  {value:'uninstallation', color:'#7C3AED', bg:'#EDE9FE', label:'Uninstallation'},
   {value:'maintenance',    color:'#0369A1', bg:'#E0F2FE', label:'Maintenance'},
   {value:'paid',           color:'#B45309', bg:'#FFF8E1', label:'₹1 Paid'},
   {value:'rescheduled',    color:'#6A1B9A', bg:'#EDE7F6', label:'Rescheduled'},
@@ -2194,7 +2199,7 @@ function renderRouteStops(dayNum){
     const techLog=r.techStatusLog&&r.techStatusLog.length?r.techStatusLog[r.techStatusLog.length-1]:null;
     const techTimeStr=techLog?new Date(techLog.at).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}):'';
     const nSt=normalizeStatus(r.status);
-    const isMaint=['reinstallation','maintenance','reinstall_done','maint_done'].includes(nSt);
+    const isMaint=['reinstallation','maintenance','reinstall_done','maint_done','uninstallation','uninstall_done'].includes(nSt);
     const typeTag=isMaint
       ?`<span style="font-size:8px;font-weight:700;color:#0369A1;background:#E0F2FE;padding:1px 4px;border-radius:4px;flex-shrink:0;font-family:var(--mono)">M</span>`
       :`<span style="font-size:8px;font-weight:700;color:#2E7D32;background:#E8F5E9;padding:1px 4px;border-radius:4px;flex-shrink:0;font-family:var(--mono)">I</span>`;
@@ -2807,7 +2812,7 @@ function sheetRow(r){
   const ts=r.techStatus&&r.techStatus!=='not_started'&&TECH_S[r.techStatus]?TECH_S[r.techStatus]:null;
   const tsLog=r.techStatusLog&&r.techStatusLog.length?r.techStatusLog[r.techStatusLog.length-1]:null;
   const tsTime=tsLog?new Date(tsLog.at).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}):'';
-  const isMaint=['reinstallation','maintenance','reinstall_done','maint_done'].includes(nStatus);
+  const isMaint=['reinstallation','maintenance','reinstall_done','maint_done','uninstallation','uninstall_done'].includes(nStatus);
   const rowBg=isMaint?'#F1F5F9':'#FFFFFF';
   return `<tr class="sheet-data-row" data-id="${r.id}" style="background:${rowBg}">
     <td class="drag-handle" style="cursor:grab;color:var(--ink3);text-align:center;padding:4px 8px;user-select:none;font-size:14px">⠿</td>
