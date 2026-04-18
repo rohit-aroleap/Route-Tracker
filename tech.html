@@ -401,9 +401,12 @@ function getMyStops(){
   // Fallback: filter by getEntryCalDate for days with no routeOrders saved yet.
   let dayEntries;
   const order = routeOrders[calDay];
-  if(order && order.length){
+  if(Array.isArray(order)){
+    // routeOrders exists for this day (even if empty) — use it authoritatively.
+    // An empty array means the admin explicitly cleared all stops for this day.
     dayEntries = order.map(id=>db.find(r=>r.id===id)).filter(Boolean);
   } else {
+    // No routeOrders saved for this day yet — fall back to date-based filter
     dayEntries = db.filter(r=>getEntryCalDate(r)===calDay);
   }
   const myStops = dayEntries.filter(r=>routeGuide[r.id]===guideNum);
@@ -527,7 +530,9 @@ function renderCard(r, num){
 }
 
 /* ─── STATUS UPDATE ─── */
+const _writingIds=new Set(); // prevent duplicate writes while one is in flight
 function updateTechStatus(id, newStatus){
+  if(_writingIds.has(id)) return; // write in progress for this row — ignore tap
   const row=db.find(r=>r.id===id);
   if(!row) return;
 
@@ -556,13 +561,16 @@ function updateTechStatus(id, newStatus){
   const dot=document.getElementById('sync-dot');
   dot.style.background='rgba(255,200,50,0.9)';
   dot.classList.add('pulsing');
+  _writingIds.add(id);
 
   _fbRef.child('rows').child(String(id)).set(stamped).then(()=>{
+    _writingIds.delete(id);
     dot.style.background='rgba(100,220,120,0.9)';
     dot.classList.remove('pulsing');
     const info=techStatusInfo(newStatus);
     toast((info?info.icon+' ':'')+( info?info.label:newStatus));
   }).catch(e=>{
+    _writingIds.delete(id);
     dot.style.background='rgba(220,100,80,0.9)';
     dot.classList.remove('pulsing');
     toast('Failed to save — check connection');

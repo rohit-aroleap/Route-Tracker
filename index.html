@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.096</title>
+<title>BLR Tracker · v1.097</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -538,7 +538,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.096';
+const APP_VERSION = 'v1.097';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -1444,31 +1444,36 @@ function renderLog(){
   }).join('');
 }
 
-let _pendingDelete=null; // holds {row, timer} for undo
+const _pendingDeletes=[]; // queue — supports rapid successive deletions
 function deleteRow(id){
-  // Cancel any previous pending delete (commit it)
-  if(_pendingDelete){ _commitDelete(_pendingDelete); }
   const row=db.find(r=>r.id===id);
   if(!row) return;
   // Remove from UI immediately
   db=db.filter(r=>r.id!==id);
   _dirtyRows.delete(id);
   renderLog();updateStats();renderActivePage();
-  // Set up undo window (5 seconds)
-  const pending={row:Object.assign({},row), timer:null};
-  pending.timer=setTimeout(()=>{ _commitDelete(pending); _pendingDelete=null; },5000);
-  _pendingDelete=pending;
+  // Set up undo window (5 seconds), keep in queue so each deletion is independently undoable
+  const pending={row:Object.assign({},row), timer:null, committed:false};
+  pending.timer=setTimeout(()=>{ _commitDelete(pending); },5000);
+  _pendingDeletes.push(pending);
   toast('Entry removed', function undoDelete(){
+    if(pending.committed) return; // already committed, too late
     clearTimeout(pending.timer);
-    _pendingDelete=null;
-    db.push(row);
-    _dirtyRows.add(row.id);
+    pending.committed=true;
+    const idx=_pendingDeletes.indexOf(pending);
+    if(idx>=0) _pendingDeletes.splice(idx,1);
+    db.push(pending.row);
+    _dirtyRows.add(pending.row.id);
     renderLog();updateStats();scheduleSave();renderActivePage();
-    toast('Restored: '+(row.name||row.phone||'entry'));
+    toast('Restored: '+(pending.row.name||pending.row.phone||'entry'));
   });
 }
 function _commitDelete(pending){
+  if(pending.committed) return;
+  pending.committed=true;
   clearTimeout(pending.timer);
+  const idx=_pendingDeletes.indexOf(pending);
+  if(idx>=0) _pendingDeletes.splice(idx,1);
   deleteRowFromFirebase(pending.row.id, pending.row);
   scheduleSave();
 }
@@ -2860,7 +2865,7 @@ function renderSheet(){
       const ordered=sheetOrders[calDay].map(id=>raw.find(r=>r.id===id)).filter(Boolean);
       const newEntries=raw.filter(r=>!sheetOrders[calDay].includes(r.id));
       rows=[...ordered,...newEntries];
-      sheetOrders[calDay]=rows.map(r=>r.id); // keep clean
+      if(!window._sheetDragging) sheetOrders[calDay]=rows.map(r=>r.id); // keep clean, but not during drag
     }
     const dowIdx=new Date(2026,3,calDay).getDay();
     const dowLabel=DOW_LABELS[dowIdx];
@@ -2911,7 +2916,9 @@ function initSheetDrag(){
       handle:'.drag-handle',
       animation:150,
       ghostClass:'route-drag-ghost',
+      onStart:function(){ window._sheetDragging=true; },
       onEnd:function(evt){
+        window._sheetDragging=false;
         const rowId=parseInt(evt.item.dataset.id);
         const newCalDay=parseInt(evt.to.dataset.calday);
         const oldCalDay=parseInt(evt.from.dataset.calday);
@@ -3059,8 +3066,9 @@ function renderTimingView(){
     return `<button onclick="setTimingDay(${calDate})" style="padding:6px 14px;border-radius:20px;border:1.5px solid ${active?dp.color:'var(--border)'};background:${active?dp.bg:'var(--surface)'};color:${active?dp.color:'var(--ink2)'};font-size:12px;font-family:var(--sans);cursor:pointer;font-weight:${active?'600':'400'};white-space:nowrap">${dp.date}</button>`;
   }).join('');
 
-  // Get stops for the selected day, sorted by scheduled time
-  const dayStops=db.filter(r=>getEntryCalDate(r)===_timingDay);
+  // Get stops for the selected day (exclude cancelled/rescheduled), sorted by scheduled time
+  const TIMING_SKIP=['cancelled','rescheduled'];
+  const dayStops=db.filter(r=>getEntryCalDate(r)===_timingDay&&!TIMING_SKIP.includes(normalizeStatus(r.status)));
   const sorted=[...dayStops].sort((a,b)=>(routeStopTimes[a.id]||'99:99').localeCompare(routeStopTimes[b.id]||'99:99'));
 
   if(!sorted.length){
