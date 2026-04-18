@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.101</title>
+<title>BLR Tracker · v1.102</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -531,13 +531,86 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.101';
+const APP_VERSION = 'v1.102';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
 let _currentUser = null;       // { uid, email, displayName } — set on auth
 let _pendingWrites = 0;        // Firebase writes in flight
 let _trashBin = [];            // deleted rows with metadata, newest first
+
+/* ─── ROW LOCKING ─── */
+let _locks = {};          // rowId(num) → {lockedBy, displayName, lockedAt}
+let _lockingRowId = null; // row currently locked by THIS browser session
+const _myLockRefs = {};   // rowId → Firebase ref (tracks onDisconnect registrations)
+
+function isLockStale(lock){
+  // A lock older than 2 minutes is treated as abandoned (e.g. crashed browser)
+  return !lock||!lock.lockedAt||(Date.now()-new Date(lock.lockedAt).getTime())>120000;
+}
+function lockRow(rowId){
+  if(!_fbRef||!_currentUser||!_isFirebaseReady) return;
+  if(_lockingRowId===rowId) return;           // already holding this lock
+  if(_lockingRowId) unlockRow(_lockingRowId); // release previous row first
+  const ref=_fbRef.child('locks').child(String(rowId));
+  ref.set({lockedBy:_currentUser.email, displayName:_currentUser.displayName||_currentUser.email.split('@')[0], lockedAt:new Date().toISOString()});
+  ref.onDisconnect().remove(); // auto-release if browser crashes or tab closes
+  _myLockRefs[rowId]=ref;
+  _lockingRowId=rowId;
+}
+function unlockRow(rowId){
+  if(!rowId) return;
+  const ref=_myLockRefs[rowId]||(_fbRef&&_fbRef.child('locks').child(String(rowId)));
+  if(ref){ ref.onDisconnect().cancel(); ref.remove(); delete _myLockRefs[rowId]; }
+  if(_lockingRowId===rowId) _lockingRowId=null;
+}
+function updateLockIndicators(){
+  document.querySelectorAll('.sheet-data-row').forEach(tr=>{
+    const id=parseInt(tr.dataset.id); if(!id||isNaN(id)) return;
+    const lock=_locks[id];
+    const lockedByOther=lock&&!isLockStale(lock)&&lock.lockedBy!==(_currentUser&&_currentUser.email);
+    // Remove any existing badge
+    const old=tr.querySelector('.lock-badge'); if(old) old.remove();
+    if(lockedByOther){
+      // Store original bg the first time so we can restore it later
+      if(!tr.dataset.origBg) tr.dataset.origBg=tr.style.background||'';
+      tr.style.background='#FFFBEB';
+      tr.style.outline='2px solid #F59E0B';
+      tr.querySelectorAll('input,select').forEach(el=>{el.disabled=true;el.style.opacity='0.45';});
+      // Badge in the name cell
+      const badge=document.createElement('div');
+      badge.className='lock-badge';
+      badge.textContent='🔒 '+lock.displayName+' editing…';
+      badge.style.cssText='font-size:9px;color:#92400E;background:#FEF3C7;border:1px solid #FCD34D;padding:1px 5px;border-radius:3px;font-family:var(--mono);margin-top:2px;display:inline-block;white-space:nowrap';
+      const nameTd=tr.children[1]; if(nameTd) nameTd.appendChild(badge);
+    } else {
+      tr.style.outline='';
+      // Restore original background (maintenance gray or white)
+      if(tr.dataset.origBg!==undefined) tr.style.background=tr.dataset.origBg;
+      tr.querySelectorAll('input,select').forEach(el=>{el.disabled=false;el.style.opacity='';});
+    }
+  });
+}
+function initSheetLocking(){
+  // Event delegation — survives DOM rebuilds because listeners are on document
+  document.addEventListener('focusin',e=>{
+    if(!_currentUser||!_isFirebaseReady) return;
+    const tr=e.target.closest&&e.target.closest('.sheet-data-row');
+    if(!tr) return;
+    const id=parseInt(tr.dataset.id); if(!id||isNaN(id)) return;
+    lockRow(id);
+  });
+  document.addEventListener('focusout',e=>{
+    if(!_lockingRowId) return;
+    // Small delay: check if focus just moved to another cell in the same row
+    setTimeout(()=>{
+      const active=document.activeElement;
+      const tr=active&&active.closest&&active.closest('.sheet-data-row');
+      const activeId=tr?parseInt(tr.dataset.id):null;
+      if(activeId!==_lockingRowId) unlockRow(_lockingRowId);
+    },150);
+  });
+}
 
 function updateSyncBadge(){
   const dot=document.getElementById('sync-dot');
@@ -649,6 +722,14 @@ function initFirebase(){
       const val=snap.val()||{};
       _trashBin=Object.values(val).sort((a,b)=>(b._deletedAt||'').localeCompare(a._deletedAt||''));
       updateTrashBadge();
+    });
+
+    // ── Row locks listener ────────────────────────────────────────────────
+    _fbRef.child('locks').on('value', snap => {
+      _locks = {};
+      const val = snap.val() || {};
+      Object.entries(val).forEach(([k,v]) => { _locks[Number(k)] = v; });
+      updateLockIndicators();
     });
 
     // ── One-time snapshot: load current Firebase state on connect ─────────
@@ -769,6 +850,7 @@ function doLogin(){
 
 function doLogout(){
   if(!confirm('Sign out?')) return;
+  if(_lockingRowId) unlockRow(_lockingRowId);
   firebase.auth().signOut().then(()=>{
     _isFirebaseReady=false; _currentUser=null; toast('Signed out');
   });
@@ -2926,6 +3008,7 @@ function renderSheet(){
   html+=`</table></div>`;
   wrap.innerHTML=html;
   initSheetDrag();
+  updateLockIndicators();
   // Auto-scroll to today's date section
   if(window._sheetShouldScroll){
     window._sheetShouldScroll=false;
@@ -3069,6 +3152,7 @@ renderLog();
 if(savedAt) setTimeout(()=>showSaveIndicator(),300);
 // Set sidebar version from APP_VERSION constant
 const _svEl=document.getElementById('sidebar-version'); if(_svEl) _svEl.textContent=APP_VERSION;
+initSheetLocking();
 initFirebase();
 
 // Flush any unsaved changes before page unload (refresh / close)
