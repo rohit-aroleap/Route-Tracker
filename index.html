@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.109</title>
+<title>BLR Tracker · v1.110</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -531,7 +531,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.109';
+const APP_VERSION = 'v1.110';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -625,8 +625,19 @@ function isDayLocked(calDay){ return calDay != null && !!_dayLocks[calDay]; }
 function rowCalDate(row){
   if(!row) return null;
   if(row.date){
-    const m = String(row.date).match(/\d+/);
-    if(m){ const n = parseInt(m[0]); if(n>=1 && n<=31) return n; }
+    const s = String(row.date);
+    // 1) "DD Apr", "DDth April", "11th April" — number immediately before Apr/April
+    let m = s.match(/(\d{1,2})\s*(?:st|nd|rd|th)?\s*(?:Apr|April)\b/i);
+    if(m){ const n = parseInt(m[1]); if(n>=1 && n<=31) return n; }
+    // 2) "Apr DD", "April 26"
+    m = s.match(/(?:Apr|April)\s+(\d{1,2})\b/i);
+    if(m){ const n = parseInt(m[1]); if(n>=1 && n<=31) return n; }
+    // 3) ISO-ish ("2026-04-26") — take the last 1..31 number in the string
+    const nums = s.match(/\d+/g) || [];
+    for(let i=nums.length-1; i>=0; i--){
+      const n = parseInt(nums[i]);
+      if(n>=1 && n<=31) return n;
+    }
   }
   if(row.day>=1 && row.day<=7){
     const dp = DAY_PLAN.find(d=>d.day===row.day);
@@ -654,6 +665,24 @@ function unlockDay(calDay){
   _fbRef.child('meta/dayLocks').child(String(calDay)).remove();
 }
 function dayLockedToast(calDay){ toast('🔒 '+(calDay||'Day')+' Apr is locked — no changes allowed'); }
+
+// Debug helper: run `debugLocks()` in the browser console to see which days
+// are locked and which rows the code thinks are locked (with the computed
+// calendar day, r.date and r.day values).
+window.debugLocks = function(){
+  console.log('== Day locks ==');
+  console.log('_dayLocks =', _dayLocks);
+  console.log('Locked day keys:', Object.keys(_dayLocks||{}));
+  console.log('== Rows flagged as locked ==');
+  let count = 0;
+  (db||[]).forEach(r=>{
+    if(isRowDayLocked(r)){
+      count++;
+      console.log(`LOCKED id=${r.id} name="${r.name||''}" r.date="${r.date||''}" r.day=${r.day} → rowCalDate=${rowCalDate(r)} (getEntryCalDate=${getEntryCalDate(r)})`);
+    }
+  });
+  console.log('Total locked rows:', count);
+};
 
 function updateSyncBadge(){
   const dot=document.getElementById('sync-dot');
