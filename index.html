@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.103</title>
+<title>BLR Tracker · v1.104</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -531,7 +531,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.103';
+const APP_VERSION = 'v1.104';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -3011,7 +3011,12 @@ function renderSheet(){
   }
 
   html+=`</table></div>`;
+  // Preserve window scroll across the innerHTML replacement — otherwise the
+  // brief collapse to zero height makes the browser clamp scrollY toward 0,
+  // producing a big upward jump that's visible to the user.
+  const _prevScrollY = window.scrollY;
   wrap.innerHTML=html;
+  if(window.scrollY !== _prevScrollY) window.scrollTo(0, _prevScrollY);
   initSheetDrag();
   updateLockIndicators();
   // Auto-scroll to today's date section
@@ -3125,7 +3130,14 @@ function addSheetRow(calDate){
   setTimeout(()=>{
     const rows=document.querySelectorAll('#sheet-table tr[data-id]');
     const newRow=[...rows].find(r=>parseInt(r.dataset.id)===entry.id);
-    if(newRow) newRow.querySelector('input').focus();
+    if(newRow){
+      const inp=newRow.querySelector('input');
+      // preventScroll avoids the browser auto-jumping to place the focused
+      // cell at the top of the viewport. scrollIntoView with block:'nearest'
+      // only nudges if the new row is actually off-screen.
+      if(inp){ try{ inp.focus({preventScroll:true}); }catch(e){ inp.focus(); } }
+      newRow.scrollIntoView({block:'nearest', behavior:'smooth'});
+    }
   },50);
 }
 
