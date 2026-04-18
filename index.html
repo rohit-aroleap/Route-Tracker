@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.105</title>
+<title>BLR Tracker · v1.106</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -531,7 +531,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.105';
+const APP_VERSION = 'v1.106';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -683,6 +683,9 @@ function initFirebase(){
     rowsRef.on('child_added', snap => {
       const r = snap.val(); if(!r || !r.id) return;
       if(_ignoreRowIds.has(r.id)){ _ignoreRowIds.delete(r.id); return; }
+      // Keep nextId ahead of any id we've ever seen, so locally-generated ids
+      // never collide with one that was created by a different browser.
+      if(r.id >= nextId) nextId = r.id + 1;
       const idx = db.findIndex(x=>x.id===r.id);
       if(idx<0){
         db.push(r);
@@ -694,6 +697,7 @@ function initFirebase(){
     rowsRef.on('child_changed', snap => {
       const r = snap.val(); if(!r || !r.id) return;
       if(_ignoreRowIds.has(r.id)){ _ignoreRowIds.delete(r.id); return; }
+      if(r.id >= nextId) nextId = r.id + 1;
       const idx = db.findIndex(x=>x.id===r.id);
       if(idx>=0){
         // Don't overwrite locally-dirty rows — user may have unsaved edits in flight
@@ -1070,6 +1074,14 @@ const PLAN_COORDS = [
 
 let db = [...SEED.map((r,i)=>({...r,id:i+1}))];
 let nextId = db.length + 1;
+// Belt-and-suspenders: returns the next free id and bumps the counter past
+// any id that's already present in db (from another browser's live update).
+// Guards against the rare race where a child_added event hasn't yet bumped
+// nextId at the exact moment a trainer clicks "+ Add row".
+function allocId(){
+  while(db.some(r=>r.id===nextId)) nextId++;
+  return nextId++;
+}
 let lastSuggestedDay = null;
 let lastSuggestedPin = '';
 let lastSuggestedArea = '';
@@ -1721,7 +1733,7 @@ function addInstallation(){
   const dateDisplay=dateVal
     ? new Date(dateVal).toLocaleDateString('en-IN',{day:'numeric',month:'short'})
     : (di?di.dateLabel:'');
-  const entry={id:nextId++,name,phone,area,pin,
+  const entry={id:allocId(),name,phone,area,pin,
     date:dateDisplay,day:dayNum,status,zone,notes};
   // Parse Google Maps location if provided
   const loc=parseLocation(locInput);
@@ -1763,7 +1775,7 @@ function bulkImport(){
     const [name,phone,area,pin,date,status]=parts;
     const d=getInferredDay(pin||'');
     const zone=zoneName(pin||'')||'';
-    const entry={id:nextId++,name:name||'',phone:phone||'',area:area||'',
+    const entry={id:allocId(),name:name||'',phone:phone||'',area:area||'',
       pin:pin||'',date:date||'',day:d,status:status||'paid',zone};
     db.unshift(entry);
     _dirtyRows.add(entry.id);
@@ -3121,7 +3133,7 @@ function updateEntryLocation(id,value){
 
 function addSheetRow(calDate){
   const planDay=DAY_PLAN.find(dp=>parseInt(dp.date)===calDate);
-  const entry={id:nextId++,name:'',phone:'',area:'',pin:'',
+  const entry={id:allocId(),name:'',phone:'',area:'',pin:'',
     date:calDate+' Apr',
     day:planDay?planDay.day:null,
     status:'',zone:'',notes:''};
