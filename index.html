@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.097</title>
+<title>BLR Tracker · v1.098</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -538,7 +538,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.097';
+const APP_VERSION = 'v1.098';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -1848,7 +1848,9 @@ function initSugMapView(){
   eligible.forEach(r=>{ (pinGroups[r.pin]=pinGroups[r.pin]||[]).push(r); });
 
   Object.entries(pinGroups).forEach(([pin,group])=>{
-    const [baseLat,baseLng]=PIN_COORDS[pin];
+    const pinCoords=PIN_COORDS[pin]||getCoords(group[0]); // fallback to entry's own coords
+    if(!pinCoords) return; // skip if no coords available at all
+    const [baseLat,baseLng]=pinCoords;
     const n=group.length;
     group.forEach((r,i)=>{
       const cd=getEntryCalDate(r);
@@ -2527,7 +2529,9 @@ function optimiseRoute(dayNum){
   const sorted=[remaining.shift()];
   while(remaining.length){
     const last=sorted[sorted.length-1];
-    const [la1,ln1]=PIN_COORDS[last.pin];
+    const lastCoords=getCoords(last);
+    if(!lastCoords){ sorted.push(...remaining.splice(0)); break; } // no coords — append rest and stop
+    const [la1,ln1]=lastCoords;
     let best=0, bestDist=Infinity;
     remaining.forEach((r,i)=>{
       const [la2,ln2]=getCoords(r);
@@ -2544,7 +2548,7 @@ function optimiseRoute(dayNum){
 
 function copyRouteText(dayNum){
   dayNum=dayNum||window.routeActiveDay||[...(window.routeSelectedDays||new Set())][0];
-  if(!dayNum) return;
+  if(!dayNum){ toast('Select a day first'); return; }
   const stops=getRouteStops(dayNum);
   const dp=dayInfo(dayNum);
   const lines=[`${dp.dateLabel} — Installation Route`,''];
@@ -2758,7 +2762,7 @@ function loadFromStorage(){
 
 function exportJSON(){
   const payload={
-    db,nextId,sheetOrders,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,
+    db,nextId,sheetOrders,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,routeGuide,
     exportedAt:new Date().toISOString(),version:1
   };
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
@@ -2784,6 +2788,7 @@ function importJSON(file){
       Object.assign(routeStopTimes,p.routeStopTimes||{});
       Object.assign(routeTimeConfirmed,p.routeTimeConfirmed||{});
       Object.assign(routeAvailSlots,p.routeAvailSlots||{});
+      if(p.routeGuide) Object.assign(routeGuide,p.routeGuide);
       db.forEach(r=>_dirtyRows.add(r.id)); // push all rows to Firebase
       saveToStorage();
       updateStats(); renderLog();
