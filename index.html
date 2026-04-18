@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.107</title>
+<title>BLR Tracker · v1.108</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -531,7 +531,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.107';
+const APP_VERSION = 'v1.108';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -829,7 +829,8 @@ function initFirebase(){
             const writes = {};
             old.db.forEach(r=>{ writes[String(r.id)]=r; });
             rowsRef.set(writes);
-            _fbRef.child('meta').set({nextId:old.nextId||old.db.length+1,sheetOrders:old.sheetOrders||{},routeOrders:old.routeOrders||{},routeStopTimes:old.routeStopTimes||{},routeTimeConfirmed:old.routeTimeConfirmed||{},routeAvailSlots:old.routeAvailSlots||{},_writtenBy:_clientId});
+            // .update() (not .set()) so any existing meta sub-keys like dayLocks survive
+            _fbRef.child('meta').update({nextId:old.nextId||old.db.length+1,sheetOrders:old.sheetOrders||{},routeOrders:old.routeOrders||{},routeStopTimes:old.routeStopTimes||{},routeTimeConfirmed:old.routeTimeConfirmed||{},routeAvailSlots:old.routeAvailSlots||{},_writtenBy:_clientId});
             toast('Migration done ✓');
           } else if(db.length > 0){
             // Nothing in Firebase at all — push current localStorage data up
@@ -945,7 +946,10 @@ function pushMetaToFirebase(){
   // routeStopTimes / routeGuide / routeOrders with empty objects.
   if(!_fbMetaReceived) return;
   _writeStarted();
-  _fbRef.child('meta').set({
+  // IMPORTANT: use .update() not .set() — .set() replaces the entire meta
+  // node and would wipe out sub-keys we don't list here (notably dayLocks,
+  // which is admin-owned and must survive every edit from every client).
+  _fbRef.child('meta').update({
     nextId, sheetOrders, routeOrders, routeStopTimes, routeTimeConfirmed, routeAvailSlots, routeGuide,
     deletedIds,
     _writtenBy: _clientId,
