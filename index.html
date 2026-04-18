@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.099</title>
+<title>BLR Tracker · v1.100</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -531,7 +531,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.099';
+const APP_VERSION = 'v1.100';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -644,11 +644,21 @@ function initFirebase(){
     rowsRef.once('value').then(snap => {
       const allRows = snap.val();
       if(allRows && typeof allRows === 'object' && Object.keys(allRows).length > 0){
-        // Firebase has data — merge it in (Firebase wins over stale localStorage)
+        // Firebase has data — merge it in carefully
         const fbRows = Object.values(allRows).filter(r=>r&&r.id);
-        // Rebuild db entirely from Firebase (source of truth) — avoids any local duplicates
-        db.length = 0;
-        fbRows.forEach(r => db.push(r));
+        const fbMap = {};
+        fbRows.forEach(r => fbMap[r.id] = r);
+        // Update existing rows from Firebase (Firebase wins) UNLESS the row is
+        // locally dirty (pending write) — that means the trainer just added/edited
+        // it and the write hasn't reached Firebase yet; don't wipe it.
+        fbRows.forEach(r => {
+          if(_dirtyRows.has(r.id)) return; // local version is newer — keep it
+          const idx = db.findIndex(x => x.id === r.id);
+          if(idx >= 0) db[idx] = r; else db.push(r);
+        });
+        // Remove local rows that aren't in Firebase AND aren't pending a write
+        // (they may have been deleted by another client)
+        db = db.filter(r => fbMap[r.id] || _dirtyRows.has(r.id));
         nextId = Math.max(nextId, ...fbRows.map(r=>r.id+1), 1);
         // Push any historical entries not yet in Firebase — but ONLY if not intentionally deleted
         const fbIdSet = new Set(fbRows.map(r=>r.id));
@@ -664,6 +674,12 @@ function initFirebase(){
             if(!fbIdSet.has(r.id) && !deletedIds[r.id]) rowsRef.child(String(r.id)).set(r);
           });
         });
+        // Immediately flush any locally-dirty rows to Firebase (e.g. rows added
+        // before the connection was established — don't wait for the 600ms debounce)
+        if(_dirtyRows.size && _isFirebaseReady){
+          _dirtyRows.forEach(id=>{ const row=db.find(r=>r.id===id); if(row) pushRowToFirebase(row); });
+          _dirtyRows.clear();
+        }
         updateStats(); renderLog(); setSyncStatus('online');
         try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({db,nextId,sheetOrders,routeOrders,routeStopTimes,routeTimeConfirmed,routeAvailSlots,routeGuide,deletedIds,savedAt:new Date().toISOString()})); }catch(e){}
       } else if(!snap.exists() || Object.keys(allRows||{}).length === 0){
