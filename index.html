@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.095</title>
+<title>BLR Tracker · v1.096</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -538,8 +538,8 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.095';
-let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set();
+const APP_VERSION = 'v1.096';
+let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
 let _currentUser = null;       // { uid, email, displayName } — set on auth
@@ -698,15 +698,18 @@ function initFirebase(){
     // ── Meta listener (orders, times) ──────────────────────────────────────
     _fbRef.child('meta').on('value', snap => {
       const m = snap.val(); if(!m) return;
+      _fbMetaReceived = true; // mark that we have received authoritative meta from Firebase
       if(m._writtenBy === _clientId) return; // skip own meta echo
       if(m.nextId)            nextId = m.nextId;
-      // Full replace (not merge) so deleted keys propagate from other browsers
-      if(m.sheetOrders)       { Object.keys(sheetOrders).forEach(k=>delete sheetOrders[k]);       Object.assign(sheetOrders,       m.sheetOrders); }
-      if(m.routeOrders)       { Object.keys(routeOrders).forEach(k=>delete routeOrders[k]);       Object.assign(routeOrders,       m.routeOrders); }
-      if(m.routeStopTimes)    { Object.keys(routeStopTimes).forEach(k=>delete routeStopTimes[k]); Object.assign(routeStopTimes,    m.routeStopTimes); }
-      if(m.routeTimeConfirmed){ Object.keys(routeTimeConfirmed).forEach(k=>delete routeTimeConfirmed[k]); Object.assign(routeTimeConfirmed,m.routeTimeConfirmed); }
-      if(m.routeAvailSlots)   { Object.keys(routeAvailSlots).forEach(k=>delete routeAvailSlots[k]);Object.assign(routeAvailSlots,   m.routeAvailSlots); }
-      if(m.routeGuide)        { Object.keys(routeGuide).forEach(k=>delete routeGuide[k]);         Object.assign(routeGuide,        m.routeGuide); }
+      // Full replace (not merge) so deleted keys propagate from other browsers.
+      // Guard: only replace if incoming value has actual keys — prevents an empty
+      // write from a new browser wiping data that's already set.
+      if(m.sheetOrders       && Object.keys(m.sheetOrders).length)       { Object.keys(sheetOrders).forEach(k=>delete sheetOrders[k]);             Object.assign(sheetOrders,       m.sheetOrders); }
+      if(m.routeOrders       && Object.keys(m.routeOrders).length)        { Object.keys(routeOrders).forEach(k=>delete routeOrders[k]);             Object.assign(routeOrders,       m.routeOrders); }
+      if(m.routeStopTimes    && Object.keys(m.routeStopTimes).length)     { Object.keys(routeStopTimes).forEach(k=>delete routeStopTimes[k]);       Object.assign(routeStopTimes,    m.routeStopTimes); }
+      if(m.routeTimeConfirmed&& Object.keys(m.routeTimeConfirmed).length) { Object.keys(routeTimeConfirmed).forEach(k=>delete routeTimeConfirmed[k]);Object.assign(routeTimeConfirmed,m.routeTimeConfirmed); }
+      if(m.routeAvailSlots   && Object.keys(m.routeAvailSlots).length)    { Object.keys(routeAvailSlots).forEach(k=>delete routeAvailSlots[k]);     Object.assign(routeAvailSlots,   m.routeAvailSlots); }
+      if(m.routeGuide        && Object.keys(m.routeGuide).length)         { Object.keys(routeGuide).forEach(k=>delete routeGuide[k]);               Object.assign(routeGuide,        m.routeGuide); }
       if(m.deletedIds)        Object.assign(deletedIds, m.deletedIds);
       setSyncStatus('online');
       renderActivePage();
@@ -787,6 +790,10 @@ function deleteRowFromFirebase(id, rowData){
 
 function pushMetaToFirebase(){
   if(!_isFirebaseReady || !_fbRef) return;
+  // Don't write meta until we've received it from Firebase at least once.
+  // This prevents a new browser with empty local state from overwriting
+  // routeStopTimes / routeGuide / routeOrders with empty objects.
+  if(!_fbMetaReceived) return;
   _writeStarted();
   _fbRef.child('meta').set({
     nextId, sheetOrders, routeOrders, routeStopTimes, routeTimeConfirmed, routeAvailSlots, routeGuide,
