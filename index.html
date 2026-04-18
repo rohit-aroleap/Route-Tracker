@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.108</title>
+<title>BLR Tracker · v1.109</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -531,7 +531,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.108';
+const APP_VERSION = 'v1.109';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -617,9 +617,26 @@ const ADMIN_EMAIL = 'rohit@aroleap.com';
 function isAdmin(){ return !!(_currentUser && _currentUser.email === ADMIN_EMAIL); }
 let _dayLocks = {}; // calDay(num) → { lockedBy, lockedAt }
 function isDayLocked(calDay){ return calDay != null && !!_dayLocks[calDay]; }
+// For the lock check we cannot use getEntryCalDate — it prefers r.day (which
+// maps through DAY_PLAN, covering only 11–17 Apr) and would collapse later-
+// week rows back onto their week-1 slot. A row with r.date="26 Apr" but
+// r.day=6 would appear locked when 16 Apr is locked. Use r.date first,
+// r.day as fallback only when no date string exists.
+function rowCalDate(row){
+  if(!row) return null;
+  if(row.date){
+    const m = String(row.date).match(/\d+/);
+    if(m){ const n = parseInt(m[0]); if(n>=1 && n<=31) return n; }
+  }
+  if(row.day>=1 && row.day<=7){
+    const dp = DAY_PLAN.find(d=>d.day===row.day);
+    if(dp){ const m = String(dp.date).match(/\d+/); if(m) return parseInt(m[0]); }
+  }
+  return null;
+}
 function isRowDayLocked(row){
   if(!row) return false;
-  return isDayLocked(getEntryCalDate(row));
+  return isDayLocked(rowCalDate(row));
 }
 function lockDay(calDay){
   if(!isAdmin()){ toast('Only admin can lock days'); return; }
@@ -1610,7 +1627,7 @@ const _pendingDeletes=[]; // queue — supports rapid successive deletions
 function deleteRow(id){
   const row=db.find(r=>r.id===id);
   if(!row) return;
-  if(isRowDayLocked(row)){ dayLockedToast(getEntryCalDate(row)); return; }
+  if(isRowDayLocked(row)){ dayLockedToast(rowCalDate(row)); return; }
   // Remove from UI immediately
   db=db.filter(r=>r.id!==id);
   _dirtyRows.delete(id);
@@ -1679,7 +1696,7 @@ function renderTrashList(){
 function restoreFromTrash(id){
   const item=_trashBin.find(r=>r.id===id);
   if(!item) return;
-  if(isRowDayLocked(item)){ dayLockedToast(getEntryCalDate(item)); return; }
+  if(isRowDayLocked(item)){ dayLockedToast(rowCalDate(item)); return; }
   // Clean trash metadata before restoring
   const restored=Object.assign({},item);
   delete restored._deletedBy;
@@ -2176,7 +2193,7 @@ function setRouteGuideTab(key){
 
 function setStopGuide(entryId, guide, dayNum){
   const _row=db.find(r=>r.id===entryId);
-  if(_row && isRowDayLocked(_row)){ dayLockedToast(getEntryCalDate(_row)); return; }
+  if(_row && isRowDayLocked(_row)){ dayLockedToast(rowCalDate(_row)); return; }
   if(routeGuide[entryId]===guide) delete routeGuide[entryId]; // toggle off
   else routeGuide[entryId]=guide;
   renderRouteView(); scheduleSave();
@@ -2205,7 +2222,7 @@ let routeAvailSlots={}; // entryId -> string[] of available times e.g. ["09:00",
 // Only one confirmed per stop at a time; multiple available allowed.
 function setStopTimePill(id,time24,dayNum){
   const _row=db.find(r=>r.id===id);
-  if(_row && isRowDayLocked(_row)){ dayLockedToast(getEntryCalDate(_row)); return; }
+  if(_row && isRowDayLocked(_row)){ dayLockedToast(rowCalDate(_row)); return; }
   if(!routeAvailSlots[id]) routeAvailSlots[id]=[];
   const avail=routeAvailSlots[id];
   const isConfirmed=routeStopTimes[id]===time24;
@@ -2451,7 +2468,7 @@ function renderRouteStops(dayNum){
         const id=parseInt(evt.item.dataset.id);
         const _row=db.find(r=>r.id===id);
         if(_row && isRowDayLocked(_row)){
-          dayLockedToast(getEntryCalDate(_row));
+          dayLockedToast(rowCalDate(_row));
           setTimeout(()=>renderRouteView(),50);
           return;
         }
@@ -3187,7 +3204,7 @@ function initSheetDrag(){
 function updateEntry(id,field,value){
   const row=db.find(r=>r.id===id);
   if(!row) return;
-  if(isRowDayLocked(row)){ dayLockedToast(getEntryCalDate(row)); renderSheet(); return; }
+  if(isRowDayLocked(row)){ dayLockedToast(rowCalDate(row)); renderSheet(); return; }
   if(field==='day') row.day=value?parseInt(value)||null:null;
   else row[field]=value;
   if(field==='pin') row.zone=zoneName(value)||row.zone||'';
@@ -3199,7 +3216,7 @@ function updateEntry(id,field,value){
 function updateEntryLocation(id,value){
   const row=db.find(r=>r.id===id);
   if(!row) return;
-  if(isRowDayLocked(row)){ dayLockedToast(getEntryCalDate(row)); renderSheet(); return; }
+  if(isRowDayLocked(row)){ dayLockedToast(rowCalDate(row)); renderSheet(); return; }
   if(!value.trim()){ delete row.lat; delete row.lng; delete row.locationUrl; _dirtyRows.add(id); scheduleSave(); renderSheet(); return; }
   // Try direct parse first
   const loc=parseLocation(value);

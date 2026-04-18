@@ -235,7 +235,20 @@ let routeOrders = {};
 let _fbRef = null;
 let dayLocks = {};
 function isDayLocked(cd){ return cd!=null && !!dayLocks[cd]; }
-function isRowDayLocked(r){ return r && isDayLocked(getEntryCalDate(r)); }
+// Prefer r.date over r.day for lock checks — see index.html rowCalDate() comment.
+function rowCalDate(row){
+  if(!row) return null;
+  if(row.date){
+    const m = String(row.date).match(/\d+/);
+    if(m){ const n = parseInt(m[0]); if(n>=1 && n<=31) return n; }
+  }
+  if(row.day>=1 && row.day<=7){
+    const dp = DAY_PLAN.find(d=>d.day===row.day);
+    if(dp){ const m = String(dp.date).match(/\d+/); if(m) return parseInt(m[0]); }
+  }
+  return null;
+}
+function isRowDayLocked(r){ return r && isDayLocked(rowCalDate(r)); }
 let guideNum, calDay, guideName, guideColor, dayLabel;
 
 /* ─── URL PARAMS ─── */
