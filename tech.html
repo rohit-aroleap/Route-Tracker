@@ -233,6 +233,9 @@ let routeGuide = {};
 let routeStopTimes = {};
 let routeOrders = {};
 let _fbRef = null;
+let dayLocks = {};
+function isDayLocked(cd){ return cd!=null && !!dayLocks[cd]; }
+function isRowDayLocked(r){ return r && isDayLocked(getEntryCalDate(r)); }
 let guideNum, calDay, guideName, guideColor, dayLabel;
 
 /* ─── URL PARAMS ─── */
@@ -375,6 +378,12 @@ function setupListeners(db2){
     renderStops(); saveToCache();
   });
 
+  // Day-level data locks listener (admin-set locks on calendar days)
+  _fbRef.child('meta/dayLocks').on('value', snap=>{
+    dayLocks = snap.val() || {};
+    renderStops();
+  });
+
   // Connection status + offline banner
   db2.ref('.info/connected').on('value', snap=>{
     const dot=document.getElementById('sync-dot');
@@ -424,8 +433,12 @@ function renderStops(){
   const list=document.getElementById('stop-list');
   const summary=document.getElementById('summary');
 
+  const dayLockedBanner = isDayLocked(calDay)
+    ? `<div style="margin:10px 14px;padding:10px 12px;border-radius:8px;background:#FEF3C7;border:1px solid #FCD34D;color:#92400E;font-size:12px;font-family:var(--sans);text-align:center">🔒 Day locked by admin — read-only. Contact office for changes.</div>`
+    : '';
+
   if(!stops.length){
-    list.innerHTML='<div class="empty-state"><div class="icon">📋</div><h2>No stops assigned</h2><p>No installations assigned to '+guideName+' for '+dayLabel+'</p></div>';
+    list.innerHTML=dayLockedBanner+'<div class="empty-state"><div class="icon">📋</div><h2>No stops assigned</h2><p>No installations assigned to '+guideName+' for '+dayLabel+'</p></div>';
     summary.innerHTML='';
     return;
   }
@@ -445,7 +458,7 @@ function renderStops(){
     ${cancelled?`<div class="summary-stat"><div class="val" style="color:#B71C1C">${cancelled}</div><div class="lbl">Skip</div></div>`:''}
   </div>`;
 
-  list.innerHTML=stops.map((r,i)=>renderCard(r,i+1)).join('');
+  list.innerHTML=dayLockedBanner+stops.map((r,i)=>renderCard(r,i+1)).join('');
 }
 
 function renderCard(r, num){
@@ -492,6 +505,7 @@ function renderCard(r, num){
 
   // Action buttons
   let buttonsHtml='';
+  const rowLocked=isRowDayLocked(r);
   if(!ts||ts==='not_started'){
     buttonsHtml=`<button class="status-btn status-btn-primary" onclick="updateTechStatus(${r.id},'on_my_way')">🚗 On My Way</button>`;
   } else if(ts==='on_my_way'||ts==='en_route'){
@@ -507,6 +521,12 @@ function renderCard(r, num){
         <button class="status-btn status-btn-danger" onclick="updateTechStatus(${r.id},'cancelled')">❌ Cancel</button>
         <button class="status-btn status-btn-warn" onclick="updateTechStatus(${r.id},'rescheduled')">📅 Reschedule</button>
       </div>`;
+  }
+  if(rowLocked && buttonsHtml){
+    // Dim and disable every button, and swap onclick to a toast so nothing mutates
+    buttonsHtml = buttonsHtml
+      .replace(/onclick="updateTechStatus\([^)]*\)"/g, `onclick="toast('🔒 Day locked by admin — contact office')"`)
+      .replace(/<button/g, '<button disabled style="opacity:0.45;cursor:not-allowed;pointer-events:none"');
   }
 
   return `<div class="${cardClass}">
@@ -535,6 +555,7 @@ function updateTechStatus(id, newStatus){
   if(_writingIds.has(id)) return; // write in progress for this row — ignore tap
   const row=db.find(r=>r.id===id);
   if(!row) return;
+  if(isRowDayLocked(row)){ toast('🔒 Day locked by admin — contact office'); return; }
 
   row.techStatus=newStatus;
   if(!row.techStatusLog) row.techStatusLog=[];
