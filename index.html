@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.102</title>
+<title>BLR Tracker · v1.103</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -531,7 +531,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.102';
+const APP_VERSION = 'v1.103';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -2955,11 +2955,16 @@ const DOW_LABELS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function renderSheet(){
   const wrap=document.getElementById('sheet-wrap');
   if(!wrap) return;
-  // Don't rebuild the sheet DOM if a cell is currently focused —
+  // Don't rebuild the sheet DOM if a TEXT CELL is currently focused —
   // that would destroy unsaved text the user is typing right now.
   // The cell's onchange handler will trigger a re-render after they finish.
+  // Narrow: only editable inputs/selects inside the sheet, NOT buttons —
+  // otherwise clicks on "+ Add row", ✕ delete, drag handles etc. silently
+  // skip their own re-render because the clicked button holds focus.
   const active=document.activeElement;
-  if(active && active.closest && active.closest('#sheet-wrap')) return;
+  if(active && active.closest && active.closest('#sheet-wrap') &&
+     (active.tagName==='INPUT' || active.tagName==='SELECT' || active.tagName==='TEXTAREA') &&
+     !active.disabled) return;
   let html=`<div class="tbl-wrap"><table id="sheet-table" style="table-layout:auto">
     <thead><tr>
       <th style="width:22px"></th>
