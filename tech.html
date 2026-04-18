@@ -395,9 +395,19 @@ function setupListeners(db2){
 
 /* ─── RENDER ─── */
 function getMyStops(){
-  const dayEntries = db.filter(r=>getEntryCalDate(r)===calDay);
+  // Primary: use routeOrders[calDay] — the same source the admin route planner uses.
+  // This handles entries whose r.day/r.date fields don't match calDay
+  // (e.g. entries originally created for a different day but moved in the planner).
+  // Fallback: filter by getEntryCalDate for days with no routeOrders saved yet.
+  let dayEntries;
+  const order = routeOrders[calDay];
+  if(order && order.length){
+    dayEntries = order.map(id=>db.find(r=>r.id===id)).filter(Boolean);
+  } else {
+    dayEntries = db.filter(r=>getEntryCalDate(r)===calDay);
+  }
   const myStops = dayEntries.filter(r=>routeGuide[r.id]===guideNum);
-  // Sort by time, then by route order
+  // Sort by confirmed time, preserving routeOrders position for untimed stops
   return myStops.sort((a,b)=>{
     const ta=routeStopTimes[a.id]||'99:99';
     const tb=routeStopTimes[b.id]||'99:99';
