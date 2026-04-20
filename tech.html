@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<title>Tech View · BLR Tracker</title>
+<title>Tech View · BLR Tracker · v1.112</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -81,6 +81,27 @@ body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14p
 .status-btn-warn{background:#6A1B9A;color:#fff}
 .status-btn-row{display:flex;gap:8px;margin-top:8px}
 .status-btn-row .status-btn{flex:1;font-size:13px;padding:12px 8px}
+
+/* Stepper (v1.112) */
+.stepper{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.step-row{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;min-height:48px;user-select:none;-webkit-tap-highlight-color:transparent;transition:background 0.15s,border-color 0.15s}
+.step-row:active{transform:scale(0.99)}
+.step-row .step-dot{width:22px;height:22px;border-radius:50%;border:2px solid #9CA3AF;background:#fff;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:700;line-height:1}
+.step-row.checked{background:#ECFDF5;border-color:#10B981}
+.step-row.checked .step-dot{background:#10B981;border-color:#10B981}
+.step-row.checked .step-dot::after{content:'✓'}
+.step-row.current-checked{box-shadow:0 0 0 2px #10B981 inset}
+.step-row.disabled,.step-row.locked-disabled{opacity:0.55;cursor:not-allowed}
+.step-label{flex:1;font-size:14px;color:#111;font-weight:500}
+.step-row.checked .step-label{color:#065F46}
+.step-hint{font-size:10px;color:var(--ink3);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.04em}
+.step-variants{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+.step-variant-btn{padding:10px 8px;border-radius:6px;border:1px solid var(--border);background:#fff;font-family:var(--sans);font-size:12px;font-weight:500;cursor:pointer;min-height:44px;-webkit-tap-highlight-color:transparent}
+.step-variant-btn:active{transform:scale(0.97)}
+.step-variant-btn.v-install{background:#E8F5E9;color:#2E7D32;border-color:#2E7D3255}
+.step-variant-btn.v-maint{background:#E0F2FE;color:#0369A1;border-color:#0369A155}
+.step-variant-btn.v-reinstall{background:#D1FAE5;color:#047857;border-color:#04785755}
+.step-variant-btn.v-uninstall{background:#F3E8FF;color:#9333EA;border-color:#9333EA55}
 
 /* Done card */
 .stop-card.is-done{opacity:0.6}
@@ -226,6 +247,32 @@ function getEntryCalDate(r){
   if(r.date){ const m=r.date.match(/\d+/); if(m) return parseInt(m[0]); }
   return null;
 }
+
+/* ─── Stepper state machine (v1.112) ───────────────────────────────
+   Four visible steps: 1=On My Way, 2=Reached, 3=Started, 4=Done.
+   Step 4 has four variants (install/maint/reinstall/uninstall done).
+   cancelled/rescheduled are terminal and hide the stepper entirely. */
+const DONE_VARIANTS = ['install_done','maint_done','reinstall_done','uninstall_done','completed'];
+function stepIndex(ts){
+  if(!ts || ts==='not_started') return 0;
+  if(ts==='on_my_way' || ts==='en_route') return 1;
+  if(ts==='reached') return 2;
+  if(ts==='started') return 3;
+  if(DONE_VARIANTS.indexOf(ts) !== -1) return 4;
+  if(ts==='cancelled' || ts==='rescheduled') return -1;
+  return 0;
+}
+// One step backward. Used by the retreat-tap handler.
+function prevStatus(ts){
+  if(ts==='on_my_way' || ts==='en_route') return 'not_started';
+  if(ts==='reached') return 'on_my_way';
+  if(ts==='started') return 'reached';
+  if(DONE_VARIANTS.indexOf(ts) !== -1) return 'started';
+  return 'not_started';
+}
+const STEP_LABELS = ['', '🚗 On my way', '📍 Reached site', '🔧 Started installation', '✅ Done'];
+// Per-row flag: true while the tech has tapped step 4 and is choosing a variant.
+const _expandingStep4 = {};
 
 /* ─── STATE ─── */
 let db = [];
@@ -516,35 +563,15 @@ function renderCard(r, num){
     </div>`;
   }
 
-  // Action buttons — each onclick carries the status the button was rendered
-  // for (`ts||'not_started'`). updateTechStatus() rejects the write if the
-  // row's actual current status has moved on, which blocks the "tap-through"
-  // bug where a sync-triggered re-render swaps the button under the tech's
-  // finger and they accidentally advance past the state they meant to set.
-  let buttonsHtml='';
-  const rowLocked=isRowDayLocked(r);
-  const fromTs=ts||'not_started';
-  if(!ts||ts==='not_started'){
-    buttonsHtml=`<button class="status-btn status-btn-primary" onclick="updateTechStatus(${r.id},'on_my_way','${fromTs}')">🚗 On My Way</button>`;
-  } else if(ts==='on_my_way'||ts==='en_route'){
-    buttonsHtml=`<button class="status-btn status-btn-primary" onclick="updateTechStatus(${r.id},'reached','${fromTs}')">📍 Reached</button>`;
-  } else if(ts==='reached'){
-    buttonsHtml=`<button class="status-btn status-btn-primary" onclick="updateTechStatus(${r.id},'started','${fromTs}')">🔧 Start Installation</button>`;
-  } else if(ts==='started'){
-    buttonsHtml=`<button class="status-btn status-btn-success" onclick="updateTechStatus(${r.id},'install_done','${fromTs}')">✅ Installation Done</button>
-      <button class="status-btn" style="background:#E0F2FE;color:#0369A1;border-color:#0369A1" onclick="updateTechStatus(${r.id},'maint_done','${fromTs}')">🔩 Maintenance Done</button>
-      <button class="status-btn" style="background:#D1FAE5;color:#047857;border-color:#047857" onclick="updateTechStatus(${r.id},'reinstall_done','${fromTs}')">🔄 Reinstallation Done</button>
-      <button class="status-btn" style="background:#F3E8FF;color:#9333EA;border-color:#9333EA" onclick="updateTechStatus(${r.id},'uninstall_done','${fromTs}')">🔌 Uninstallation Done</button>
-      <div class="status-btn-row">
-        <button class="status-btn status-btn-danger" onclick="updateTechStatus(${r.id},'cancelled','${fromTs}')">❌ Cancel</button>
-        <button class="status-btn status-btn-warn" onclick="updateTechStatus(${r.id},'rescheduled','${fromTs}')">📅 Reschedule</button>
-      </div>`;
-  }
-  if(rowLocked && buttonsHtml){
-    // Dim and disable every button, and swap onclick to a toast so nothing mutates
-    buttonsHtml = buttonsHtml
-      .replace(/onclick="updateTechStatus\([^)]*\)"/g, `onclick="toast('🔒 Day locked by admin — contact office')"`)
-      .replace(/<button/g, '<button disabled style="opacity:0.45;cursor:not-allowed;pointer-events:none"');
+  // Stepper (v1.112) — all four steps always visible as toggleable rows.
+  // Advancing: tap the row at currentStep+1. Retreating: tap the topmost
+  // checked row (currentStep). Lower rows / future rows reject with a toast.
+  // All taps route through updateTechStatus() so v1.111 guards still apply.
+  const rowLocked = isRowDayLocked(r);
+  const fromTs = ts || 'not_started';
+  let buttonsHtml = '';
+  if(stepIndex(ts) !== -1){
+    buttonsHtml = renderStepper(r, fromTs, rowLocked);
   }
 
   return `<div class="${cardClass}">
@@ -565,6 +592,115 @@ function renderCard(r, num){
     </div>
     ${buttonsHtml?`<div class="stop-footer">${buttonsHtml}</div>`:'<div class="stop-footer" style="padding:8px 14px;text-align:center;font-size:11px;color:var(--ink3);font-family:var(--mono)">'+(isTerminal?(techStatusInfo(ts)?techStatusInfo(ts).icon+' '+techStatusInfo(ts).label:ts):'—')+'</div>'}
   </div>`;
+}
+
+/* ─── STEPPER RENDER + TAP WRAPPERS (v1.112) ───────────────────── */
+function renderStepper(r, fromTs, rowLocked){
+  const curIdx = stepIndex(r.techStatus || 'not_started');
+  const lockAttr = rowLocked ? ' locked-disabled' : '';
+  const expanded = !rowLocked && curIdx === 3 && _expandingStep4[r.id];
+  let html = '<div class="stepper">';
+  for(let n = 1; n <= 4; n++){
+    const isChecked = n <= curIdx;
+    const isCurrent = n === curIdx;          // topmost checked → tap = retreat
+    const isNext    = n === curIdx + 1;      // next up         → tap = advance
+    // Label for step 4 when it's been ticked: reflect the actual done-variant.
+    let label = STEP_LABELS[n];
+    if(n === 4 && curIdx === 4){
+      const info = techStatusInfo(r.techStatus);
+      if(info) label = info.icon + ' ' + info.label;
+    }
+    const classes = 'step-row' +
+      (isChecked ? ' checked' : '') +
+      (isCurrent ? ' current-checked' : '') +
+      lockAttr;
+    // Click dispatch — the handler figures out advance vs retreat vs reject.
+    let onclick;
+    if(rowLocked){
+      onclick = `toast('🔒 Day locked by admin — contact office')`;
+    } else if(isCurrent){
+      onclick = `retreatStep(${r.id},'${r.techStatus||'not_started'}')`;
+    } else if(n === 4 && isNext){
+      onclick = `advanceStep(${r.id},4,'${fromTs}')`;  // reveals variants
+    } else {
+      onclick = `advanceStep(${r.id},${n},'${fromTs}')`;
+    }
+    let hint = '';
+    if(!rowLocked){
+      if(isCurrent && n < 4) hint = '<span class="step-hint">tap to undo</span>';
+      else if(isCurrent && n === 4) hint = '<span class="step-hint">tap to undo</span>';
+      else if(isNext) hint = '<span class="step-hint">tap next</span>';
+    }
+    html += `<div class="${classes}" onclick="${onclick}">
+      <div class="step-dot">${!isChecked ? n : ''}</div>
+      <div class="step-label">${label}</div>
+      ${hint}
+    </div>`;
+    // Variant picker immediately after step 4 row, only when expanded.
+    if(n === 4 && expanded){
+      html += `<div class="step-variants">
+        <button class="step-variant-btn v-install"   onclick="pickDoneVariant(${r.id},'install_done','${fromTs}')">✅ Installation Done</button>
+        <button class="step-variant-btn v-maint"     onclick="pickDoneVariant(${r.id},'maint_done','${fromTs}')">🔩 Maintenance Done</button>
+        <button class="step-variant-btn v-reinstall" onclick="pickDoneVariant(${r.id},'reinstall_done','${fromTs}')">🔄 Reinstallation Done</button>
+        <button class="step-variant-btn v-uninstall" onclick="pickDoneVariant(${r.id},'uninstall_done','${fromTs}')">🔌 Uninstallation Done</button>
+      </div>`;
+    }
+  }
+  html += '</div>';
+  // Cancel / Reschedule row — visible once step 3 is ticked and not yet terminal.
+  if(curIdx >= 3 && curIdx < 4){
+    if(rowLocked){
+      html += `<div class="status-btn-row">
+        <button class="status-btn status-btn-danger" disabled style="opacity:0.45;cursor:not-allowed;pointer-events:none">❌ Cancel</button>
+        <button class="status-btn status-btn-warn" disabled style="opacity:0.45;cursor:not-allowed;pointer-events:none">📅 Reschedule</button>
+      </div>`;
+    } else {
+      html += `<div class="status-btn-row">
+        <button class="status-btn status-btn-danger" onclick="updateTechStatus(${r.id},'cancelled','${fromTs}')">❌ Cancel</button>
+        <button class="status-btn status-btn-warn"   onclick="updateTechStatus(${r.id},'rescheduled','${fromTs}')">📅 Reschedule</button>
+      </div>`;
+    }
+  }
+  return html;
+}
+
+function advanceStep(id, stepN, fromTs){
+  const row = db.find(x => x.id === id);
+  if(!row) return;
+  if(isRowDayLocked(row)){ toast('🔒 Day locked by admin — contact office'); return; }
+  const curIdx = stepIndex(row.techStatus || 'not_started');
+  if(stepN !== curIdx + 1){
+    toast(`Tap step ${curIdx + 1} first`);
+    return;
+  }
+  if(stepN === 4){
+    // Reveal the 4 done-variant chips instead of auto-picking one.
+    _expandingStep4[id] = true;
+    renderStops();
+    return;
+  }
+  const nextStatus = ['not_started','on_my_way','reached','started'][stepN];
+  updateTechStatus(id, nextStatus, fromTs);
+}
+
+function retreatStep(id, fromTs){
+  const row = db.find(x => x.id === id);
+  if(!row) return;
+  if(isRowDayLocked(row)){ toast('🔒 Day locked by admin — contact office'); return; }
+  // If we're retreating from the expanded step-4 picker (step 3 checked,
+  // variants showing), just collapse the picker without a write.
+  if(stepIndex(row.techStatus || 'not_started') === 3 && _expandingStep4[id]){
+    delete _expandingStep4[id];
+    renderStops();
+    return;
+  }
+  const target = prevStatus(fromTs);
+  updateTechStatus(id, target, fromTs);
+}
+
+function pickDoneVariant(id, variant, fromTs){
+  delete _expandingStep4[id];
+  updateTechStatus(id, variant, fromTs);
 }
 
 /* ─── STATUS UPDATE ─── */
@@ -608,23 +744,38 @@ function updateTechStatus(id, newStatus, expectedFromStatus){
   // Snapshot for undo
   const prevStatus = row.techStatus || null;
   const prevMainStatus = row.status;
-  const prevLogLen = (row.techStatusLog && row.techStatusLog.length) || 0;
+  const prevLog = (row.techStatusLog && row.techStatusLog.slice()) || [];
+  const prevLogLen = prevLog.length;
 
-  row.techStatus=newStatus;
-  if(!row.techStatusLog) row.techStatusLog=[];
-  row.techStatusLog.push({
-    status:newStatus,
-    at:new Date().toISOString(),
-    guide:guideNum
-  });
+  // Detect retreat: new step is strictly lower than current. On retreat we
+  // pop the last log entry (log represents forward progress only) and clear
+  // any terminal row.status so the row goes back to "scheduled".
+  const isRetreat = stepIndex(newStatus) < stepIndex(prevStatus || 'not_started');
 
-  // Terminal statuses update the main status field
-  if(newStatus==='install_done'||newStatus==='completed') row.status='done';
-  else if(newStatus==='maint_done') row.status='maint_done';
-  else if(newStatus==='reinstall_done') row.status='reinstall_done';
-  else if(newStatus==='uninstall_done') row.status='uninstall_done';
-  else if(newStatus==='cancelled') row.status='cancelled';
-  else if(newStatus==='rescheduled') row.status='rescheduled';
+  row.techStatus = newStatus;
+  if(!row.techStatusLog) row.techStatusLog = [];
+
+  if(isRetreat){
+    // Drop the most recent forward entry.
+    if(row.techStatusLog.length > 0) row.techStatusLog.pop();
+    // If we retreated out of a terminal state, reset row.status.
+    if(['done','maint_done','reinstall_done','uninstall_done','cancelled','rescheduled'].indexOf(prevMainStatus) !== -1){
+      row.status = 'scheduled';
+    }
+  } else {
+    row.techStatusLog.push({
+      status: newStatus,
+      at: new Date().toISOString(),
+      guide: guideNum
+    });
+    // Terminal statuses update the main status field
+    if(newStatus==='install_done'||newStatus==='completed') row.status='done';
+    else if(newStatus==='maint_done') row.status='maint_done';
+    else if(newStatus==='reinstall_done') row.status='reinstall_done';
+    else if(newStatus==='uninstall_done') row.status='uninstall_done';
+    else if(newStatus==='cancelled') row.status='cancelled';
+    else if(newStatus==='rescheduled') row.status='rescheduled';
+  }
 
   // Write to Firebase
   const stamped=Object.assign({}, row, {
@@ -642,16 +793,19 @@ function updateTechStatus(id, newStatus, expectedFromStatus){
     dot.style.background='rgba(100,220,120,0.9)';
     dot.classList.remove('pulsing');
     const info=techStatusInfo(newStatus);
-    // Undo toast: 6-second window to reverse an accidental tap. If the
-    // technician didn't mean to advance the status, one tap on Undo
-    // restores the previous state (locally and in Firebase).
-    toastUndo((info?info.icon+' ':'')+(info?info.label:newStatus), 6000, function(){
+    // Undo toast: 6-second window to reverse an accidental tap (advance OR
+    // retreat). One tap on Undo fully restores techStatus, row.status, and
+    // the techStatusLog from the pre-tap snapshot.
+    const toastMsg = isRetreat
+      ? `Step ${stepIndex(prevStatus||'not_started')} un-ticked`
+      : (info ? info.icon + ' ' + info.label : newStatus);
+    toastUndo(toastMsg, 6000, function(){
       if(!row) return;
       row.techStatus = prevStatus;
       row.status = prevMainStatus;
-      if(row.techStatusLog && row.techStatusLog.length > prevLogLen){
-        row.techStatusLog.length = prevLogLen;
-      }
+      // Restore the full log snapshot (covers both pushed advance and
+      // popped retreat).
+      row.techStatusLog = prevLog.slice();
       _writingIds.add(id);
       _fbRef.child('rows').child(String(id)).set(Object.assign({}, row, {
         _lastModifiedBy:'tech:'+guideName+' (undo)',
