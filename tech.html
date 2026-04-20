@@ -516,23 +516,28 @@ function renderCard(r, num){
     </div>`;
   }
 
-  // Action buttons
+  // Action buttons — each onclick carries the status the button was rendered
+  // for (`ts||'not_started'`). updateTechStatus() rejects the write if the
+  // row's actual current status has moved on, which blocks the "tap-through"
+  // bug where a sync-triggered re-render swaps the button under the tech's
+  // finger and they accidentally advance past the state they meant to set.
   let buttonsHtml='';
   const rowLocked=isRowDayLocked(r);
+  const fromTs=ts||'not_started';
   if(!ts||ts==='not_started'){
-    buttonsHtml=`<button class="status-btn status-btn-primary" onclick="updateTechStatus(${r.id},'on_my_way')">🚗 On My Way</button>`;
+    buttonsHtml=`<button class="status-btn status-btn-primary" onclick="updateTechStatus(${r.id},'on_my_way','${fromTs}')">🚗 On My Way</button>`;
   } else if(ts==='on_my_way'||ts==='en_route'){
-    buttonsHtml=`<button class="status-btn status-btn-primary" onclick="updateTechStatus(${r.id},'reached')">📍 Reached</button>`;
+    buttonsHtml=`<button class="status-btn status-btn-primary" onclick="updateTechStatus(${r.id},'reached','${fromTs}')">📍 Reached</button>`;
   } else if(ts==='reached'){
-    buttonsHtml=`<button class="status-btn status-btn-primary" onclick="updateTechStatus(${r.id},'started')">🔧 Start Installation</button>`;
+    buttonsHtml=`<button class="status-btn status-btn-primary" onclick="updateTechStatus(${r.id},'started','${fromTs}')">🔧 Start Installation</button>`;
   } else if(ts==='started'){
-    buttonsHtml=`<button class="status-btn status-btn-success" onclick="updateTechStatus(${r.id},'install_done')">✅ Installation Done</button>
-      <button class="status-btn" style="background:#E0F2FE;color:#0369A1;border-color:#0369A1" onclick="updateTechStatus(${r.id},'maint_done')">🔩 Maintenance Done</button>
-      <button class="status-btn" style="background:#D1FAE5;color:#047857;border-color:#047857" onclick="updateTechStatus(${r.id},'reinstall_done')">🔄 Reinstallation Done</button>
-      <button class="status-btn" style="background:#F3E8FF;color:#9333EA;border-color:#9333EA" onclick="updateTechStatus(${r.id},'uninstall_done')">🔌 Uninstallation Done</button>
+    buttonsHtml=`<button class="status-btn status-btn-success" onclick="updateTechStatus(${r.id},'install_done','${fromTs}')">✅ Installation Done</button>
+      <button class="status-btn" style="background:#E0F2FE;color:#0369A1;border-color:#0369A1" onclick="updateTechStatus(${r.id},'maint_done','${fromTs}')">🔩 Maintenance Done</button>
+      <button class="status-btn" style="background:#D1FAE5;color:#047857;border-color:#047857" onclick="updateTechStatus(${r.id},'reinstall_done','${fromTs}')">🔄 Reinstallation Done</button>
+      <button class="status-btn" style="background:#F3E8FF;color:#9333EA;border-color:#9333EA" onclick="updateTechStatus(${r.id},'uninstall_done','${fromTs}')">🔌 Uninstallation Done</button>
       <div class="status-btn-row">
-        <button class="status-btn status-btn-danger" onclick="updateTechStatus(${r.id},'cancelled')">❌ Cancel</button>
-        <button class="status-btn status-btn-warn" onclick="updateTechStatus(${r.id},'rescheduled')">📅 Reschedule</button>
+        <button class="status-btn status-btn-danger" onclick="updateTechStatus(${r.id},'cancelled','${fromTs}')">❌ Cancel</button>
+        <button class="status-btn status-btn-warn" onclick="updateTechStatus(${r.id},'rescheduled','${fromTs}')">📅 Reschedule</button>
       </div>`;
   }
   if(rowLocked && buttonsHtml){
@@ -564,11 +569,46 @@ function renderCard(r, num){
 
 /* ─── STATUS UPDATE ─── */
 const _writingIds=new Set(); // prevent duplicate writes while one is in flight
-function updateTechStatus(id, newStatus){
+// Per-row timestamp of the last accepted tap. Blocks rapid successive taps
+// (e.g. a synthetic click arriving after a live-sync re-render swaps the
+// button under the tech's finger) for ROW_TAP_LOCKOUT_MS.
+const _lastTapAt = {};
+const ROW_TAP_LOCKOUT_MS = 1000;
+function updateTechStatus(id, newStatus, expectedFromStatus){
   if(_writingIds.has(id)) return; // write in progress for this row — ignore tap
   const row=db.find(r=>r.id===id);
   if(!row) return;
   if(isRowDayLocked(row)){ toast('🔒 Day locked by admin — contact office'); return; }
+
+  // ─── Tap-through guard ─────────────────────────────────────────────────
+  // Every action button is rendered with the status it was "going from".
+  // If the row has since moved on (because another client updated it, or
+  // the tech's own previous tap completed and re-rendered new buttons at
+  // the same coordinates), reject the tap. The tech didn't intentionally
+  // tap the button that's now on screen — they tapped the one that WAS.
+  if(expectedFromStatus !== undefined){
+    const actualFrom = row.techStatus || 'not_started';
+    if(actualFrom !== expectedFromStatus){
+      toast('↻ Status updated — please tap again');
+      renderStops();
+      return;
+    }
+  }
+
+  // ─── Per-row lockout ───────────────────────────────────────────────────
+  // Mobile Safari/Chrome fire a synthetic click ~0-300ms after touchend.
+  // If renderStops() runs in that window, the click lands on a new button.
+  // Ignore any tap for ROW_TAP_LOCKOUT_MS after an accepted one.
+  const nowMs = Date.now();
+  if(_lastTapAt[id] && (nowMs - _lastTapAt[id]) < ROW_TAP_LOCKOUT_MS){
+    return;  // silent: tech didn't mean to do this
+  }
+  _lastTapAt[id] = nowMs;
+
+  // Snapshot for undo
+  const prevStatus = row.techStatus || null;
+  const prevMainStatus = row.status;
+  const prevLogLen = (row.techStatusLog && row.techStatusLog.length) || 0;
 
   row.techStatus=newStatus;
   if(!row.techStatusLog) row.techStatusLog=[];
@@ -602,7 +642,23 @@ function updateTechStatus(id, newStatus){
     dot.style.background='rgba(100,220,120,0.9)';
     dot.classList.remove('pulsing');
     const info=techStatusInfo(newStatus);
-    toast((info?info.icon+' ':'')+( info?info.label:newStatus));
+    // Undo toast: 6-second window to reverse an accidental tap. If the
+    // technician didn't mean to advance the status, one tap on Undo
+    // restores the previous state (locally and in Firebase).
+    toastUndo((info?info.icon+' ':'')+(info?info.label:newStatus), 6000, function(){
+      if(!row) return;
+      row.techStatus = prevStatus;
+      row.status = prevMainStatus;
+      if(row.techStatusLog && row.techStatusLog.length > prevLogLen){
+        row.techStatusLog.length = prevLogLen;
+      }
+      _writingIds.add(id);
+      _fbRef.child('rows').child(String(id)).set(Object.assign({}, row, {
+        _lastModifiedBy:'tech:'+guideName+' (undo)',
+        _lastModifiedAt:new Date().toISOString()
+      })).then(()=>{ _writingIds.delete(id); renderStops(); saveToCache(); toast('↩ Undone'); })
+        .catch(()=>{ _writingIds.delete(id); toast('Undo failed — check connection'); });
+    });
   }).catch(e=>{
     _writingIds.delete(id);
     dot.style.background='rgba(220,100,80,0.9)';
@@ -624,9 +680,36 @@ let _toastTimer=null;
 function toast(msg){
   const el=document.getElementById('toast');
   el.textContent=msg;
+  el.onclick=null;
+  el.style.cursor='';
   el.classList.add('show');
   clearTimeout(_toastTimer);
   _toastTimer=setTimeout(()=>el.classList.remove('show'),2500);
+}
+// Toast with an "Undo" affordance. Tapping anywhere on the toast invokes
+// the callback. Auto-dismisses after durationMs.
+function toastUndo(msg, durationMs, onUndo){
+  const el=document.getElementById('toast');
+  el.innerHTML = '<span>'+msg+'</span>' +
+    '<span style="margin-left:14px;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.22);font-weight:600">↩ Undo</span>';
+  el.style.cursor='pointer';
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  let fired = false;
+  el.onclick = function(){
+    if(fired) return;
+    fired = true;
+    el.onclick = null;
+    el.style.cursor = '';
+    el.classList.remove('show');
+    clearTimeout(_toastTimer);
+    try { onUndo(); } catch(e){ console.warn('undo handler error',e); }
+  };
+  _toastTimer = setTimeout(()=>{
+    el.onclick = null;
+    el.style.cursor = '';
+    el.classList.remove('show');
+  }, durationMs || 6000);
 }
 </script>
 </body>
