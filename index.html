@@ -242,7 +242,6 @@ tr:hover td{background:rgba(0,0,0,0.015)}
         <span id="sync-dot" style="width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.3);flex-shrink:0;transition:background 0.3s"></span>
         <span id="sync-text">Initializing…</span>
       </div>
-      <button onclick="resetToSeed()" style="width:100%;margin-top:6px;font-size:10px;padding:5px;border-radius:var(--r);border:1px solid rgba(200,75,47,0.3);background:transparent;color:rgba(200,75,47,0.6);cursor:pointer;font-family:var(--mono)">Reset to seed data</button>
     </div>
   </aside>
 
@@ -1317,13 +1316,11 @@ function getInferredDay(pin){
 }
 
 function resetToSeed(){
-  if(!confirm('Clear all data and reload seed?')) return;
-  localStorage.removeItem(STORAGE_KEY);
-  if(_fbRef){
-    _fbRef.remove().then(()=>location.reload()).catch(()=>location.reload());
-  } else {
-    location.reload();
-  }
+  // DISABLED: this used to wipe all of /v2 in Firebase (rows + trash + meta).
+  // An accidental click previously destroyed 131 rows and emptied trash.
+  // If you truly need to reset, do it manually from the Firebase console.
+  alert('Reset to seed data has been disabled. Use the Firebase console if a full wipe is genuinely required.');
+  return;
 }
 
 /* ─── NAVIGATION ─── */
