@@ -1,0 +1,101 @@
+name: Daily Firebase backup
+
+on:
+  schedule:
+    # 00:30 IST = 19:00 UTC, every day
+    - cron: '0 19 * * *'
+  workflow_dispatch: {}  # allow manual runs from the Actions tab
+
+permissions:
+  contents: write  # needed to commit the backup file back to the repo
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install google-auth
+        run: pip install --quiet google-auth requests
+
+      - name: Fetch Firebase snapshot
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_DB_URL: ${{ secrets.FIREBASE_DB_URL }}
+        run: |
+          python - <<'PY'
+          import json, os, datetime, sys
+          from google.oauth2 import service_account
+          from google.auth.transport.requests import Request
+          import requests
+
+          sa_raw = os.environ['FIREBASE_SERVICE_ACCOUNT']
+          db_url = os.environ['FIREBASE_DB_URL'].rstrip('/')
+
+          try:
+              sa_info = json.loads(sa_raw)
+          except json.JSONDecodeError as e:
+              print('FIREBASE_SERVICE_ACCOUNT is not valid JSON:', e)
+              sys.exit(1)
+
+          scopes = [
+              'https://www.googleapis.com/auth/userinfo.email',
+              'https://www.googleapis.com/auth/firebase.database',
+          ]
+          creds = service_account.Credentials.from_service_account_info(sa_info, scopes=scopes)
+          creds.refresh(Request())
+          token = creds.token
+
+          resp = requests.get(f'{db_url}/.json', params={'access_token': token}, timeout=60)
+          resp.raise_for_status()
+          data = resp.json()
+
+          if data is None:
+              print('WARNING: Firebase returned null — database appears empty. Aborting to avoid overwriting good history.')
+              sys.exit(1)
+
+          # IST timestamp for filename
+          ist = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+          now = datetime.datetime.now(ist)
+          date_str = now.strftime('%Y-%m-%d')
+
+          os.makedirs('backups', exist_ok=True)
+          path = f'backups/{date_str}.json'
+          with open(path, 'w', encoding='utf-8') as f:
+              json.dump(data, f, ensure_ascii=False, indent=2, sort_keys=True)
+
+          # summary
+          rows = data.get('blr_tracker', {}).get('v2', {}).get('rows') or []
+          if isinstance(rows, dict):
+              n_rows = len([k for k,v in rows.items() if v])
+          elif isinstance(rows, list):
+              n_rows = len([v for v in rows if v])
+          else:
+              n_rows = 0
+          size_kb = os.path.getsize(path) / 1024
+          print(f'Wrote {path}: {n_rows} rows, {size_kb:.1f} KB')
+
+          # expose for commit step
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write(f'BACKUP_PATH={path}\n')
+              f.write(f'BACKUP_ROWS={n_rows}\n')
+              f.write(f'BACKUP_DATE={date_str}\n')
+          PY
+
+      - name: Commit backup
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$BACKUP_PATH"
+          if git diff --cached --quiet; then
+            echo 'No changes — today''s backup is identical to the committed version.'
+          else
+            git commit -m "Backup $BACKUP_DATE ($BACKUP_ROWS rows)"
+            git push
+          fi
