@@ -242,6 +242,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
         <span id="sync-dot" style="width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.3);flex-shrink:0;transition:background 0.3s"></span>
         <span id="sync-text">Initializing…</span>
       </div>
+      <button onclick="exportBackupJson()" title="Download a JSON snapshot of the entire database" style="width:100%;margin-top:6px;font-size:10px;padding:5px;border-radius:var(--r);border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.7);cursor:pointer;font-family:var(--mono)">⬇ Download backup JSON</button>
     </div>
   </aside>
 
@@ -1321,6 +1322,47 @@ function resetToSeed(){
   // If you truly need to reset, do it manually from the Firebase console.
   alert('Reset to seed data has been disabled. Use the Firebase console if a full wipe is genuinely required.');
   return;
+}
+
+/* ─── MANUAL BACKUP EXPORT ─── */
+function exportBackupJson(){
+  // Live snapshot of the whole /v2 subtree from Firebase (preferred, authoritative)
+  // Falls back to in-memory state if Firebase isn't connected.
+  function downloadJson(payload, suffix){
+    try {
+      const now = new Date();
+      const pad = n => String(n).padStart(2,'0');
+      const stamp = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `blr-tracker-backup-${stamp}${suffix||''}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(()=>URL.revokeObjectURL(url), 1000);
+    } catch(e){
+      alert('Download failed: ' + (e && e.message ? e.message : e));
+    }
+  }
+
+  if(_fbRef && _isFirebaseReady){
+    _fbRef.once('value').then(snap=>{
+      const data = snap.val();
+      if(!data){
+        if(!confirm('Firebase returned empty. Download local in-memory snapshot instead?')) return;
+        downloadJson({ _source:'local-memory', exportedAt:new Date().toISOString(), db: (typeof db!=='undefined'?db:[]) }, '-local');
+        return;
+      }
+      downloadJson({ _source:'firebase', _path: (typeof FB_PATH!=='undefined'?FB_PATH:null), exportedAt:new Date().toISOString(), v2: data }, '');
+    }).catch(err=>{
+      alert('Firebase fetch failed: ' + (err && err.message ? err.message : err) + '\nFalling back to local snapshot.');
+      downloadJson({ _source:'local-memory', exportedAt:new Date().toISOString(), db: (typeof db!=='undefined'?db:[]) }, '-local');
+    });
+  } else {
+    downloadJson({ _source:'local-memory', exportedAt:new Date().toISOString(), db: (typeof db!=='undefined'?db:[]) }, '-local');
+  }
 }
 
 /* ─── NAVIGATION ─── */
