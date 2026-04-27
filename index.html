@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.118</title>
+<title>BLR Tracker · v1.119</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -531,7 +531,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.118';
+const APP_VERSION = 'v1.119';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -1508,6 +1508,24 @@ function renderDayPills(){
 /* ─── CALENDAR ─── */
 let selectedDay=null;
 let calStatusFilter=new Set(['done']);
+// Schedule Overview defaults to the current real-world month (or April if outside range).
+let _calMonthIdx = (function(){
+  try{
+    const v = localStorage.getItem('blr_cal_month');
+    if(v !== null){ const i = parseInt(v); if(i>=0 && i<SHEET_MONTHS.length) return i; }
+  } catch(e){}
+  const now = new Date();
+  const idx = SHEET_MONTHS.findIndex(s => s.m === now.getMonth() && s.y === now.getFullYear());
+  return idx >= 0 ? idx : 0;
+})();
+function setCalMonth(idx){
+  if(idx < 0 || idx >= SHEET_MONTHS.length) return;
+  if(idx === _calMonthIdx) return;
+  _calMonthIdx = idx;
+  selectedDay = null; // clear day-detail when switching month
+  try{ localStorage.setItem('blr_cal_month', String(idx)); }catch(e){}
+  renderCalendar();
+}
 
 // Normalise legacy status values to the current set
 function normalizeStatus(s){
@@ -1552,30 +1570,45 @@ function renderCalendar(){
   const wrap=document.getElementById('cal-wrap');
   if(!wrap) return;
 
-  const year=2026, month=3; // April 2026 (0-indexed)
-  const daysInMonth=30;
+  const SM = SHEET_MONTHS[_calMonthIdx] || SHEET_MONTHS[0];
+  const year=SM.y, month=SM.m;
+  const daysInMonth=SM.days;
   const firstDow=new Date(year,month,1).getDay(); // 0=Sun
   const today=new Date();
   const isThisMonth=(today.getFullYear()===year&&today.getMonth()===month);
   const todayDate=today.getDate();
 
-  // Map install day numbers to April dates (11-17)
+  // Map install day numbers to dates (DAY_PLAN is April-only)
   const installDateMap={};
-  DAY_PLAN.forEach(dp=>{
-    const d=parseInt(dp.date); // "11 Apr" -> 11
-    installDateMap[d]=dp;
-  });
+  if(_calMonthIdx===0){
+    DAY_PLAN.forEach(dp=>{
+      const d=parseInt(dp.date); // "11 Apr" -> 11
+      installDateMap[d]=dp;
+    });
+  }
 
-  // ── Filter pill bar ──
+  // Rows scoped to this month
+  const monthRows = db.filter(r=>getEntryMonthIdx(r)===_calMonthIdx);
+
+  // ── Month tab strip ──
+  let monthTabsHtml = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">`;
+  SHEET_MONTHS.forEach((s,i)=>{
+    const active = i === _calMonthIdx;
+    const cnt = db.filter(r=>getEntryMonthIdx(r)===i && getEntryCalDate(r)!==null).length;
+    monthTabsHtml += `<button onclick="setCalMonth(${i})" style="padding:5px 12px;border-radius:6px;border:1px solid ${active?'var(--ink)':'var(--border)'};background:${active?'var(--ink)':'transparent'};color:${active?'#fff':'var(--ink2)'};font-family:var(--sans);font-size:11px;font-weight:${active?'600':'400'};cursor:pointer;transition:all 0.15s">${s.label} ${s.y}${cnt?` <span style="opacity:0.7">· ${cnt}</span>`:''}</button>`;
+  });
+  monthTabsHtml += `</div>`;
+
+  // ── Filter pill bar (scoped to month) ──
   const monthTotals={};
   CAL_STATUSES.forEach(s=>{
-    monthTotals[s.value]=db.filter(r=>normalizeStatus(r.status)===s.value&&getEntryCalDate(r)!==null).length;
+    monthTotals[s.value]=monthRows.filter(r=>normalizeStatus(r.status)===s.value&&getEntryCalDate(r)!==null).length;
   });
   const grandTotal=Object.values(monthTotals).reduce((a,b)=>a+b,0);
   const allSelected=calStatusFilter.size===CAL_STATUSES.length;
-  const totalFiltered=db.filter(r=>calStatusFilter.has(normalizeStatus(r.status))&&getEntryCalDate(r)!==null).length;
+  const totalFiltered=monthRows.filter(r=>calStatusFilter.has(normalizeStatus(r.status))&&getEntryCalDate(r)!==null).length;
 
-  let html=`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+  let html=monthTabsHtml + `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
     <button onclick="toggleCalFilter('all')" style="padding:5px 12px;border-radius:20px;border:1.5px solid ${allSelected?'var(--ink)':'var(--border)'};background:${allSelected?'var(--ink)':'transparent'};color:${allSelected?'#fff':'var(--ink2)'};font-size:12px;font-family:var(--sans);cursor:pointer;font-weight:500;transition:all 0.15s">All ${grandTotal?`(${grandTotal})`:''}</button>
     ${CAL_STATUSES.map(s=>{
       const active=calStatusFilter.has(s.value);
@@ -1590,7 +1623,7 @@ function renderCalendar(){
   const dow=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   html+=`<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden">
     <div style="background:var(--ink);padding:14px 18px;display:flex;align-items:center;justify-content:space-between">
-      <span style="font-family:var(--serif);font-size:18px;color:#fff;font-weight:300;letter-spacing:-0.01em">April 2026</span>
+      <span style="font-family:var(--serif);font-size:18px;color:#fff;font-weight:300;letter-spacing:-0.01em">${SM.label} ${SM.y}</span>
       <span style="font-family:var(--mono);font-size:11px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:0.06em">${totalFiltered} ${allSelected?'total':calStatusFilter.size===1?[...calStatusFilter][0]:'filtered'}</span>
     </div>
     <div style="display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border2)">
@@ -1605,20 +1638,22 @@ function renderCalendar(){
 
     // Build a map: which install day covers which week (by Sunday date of that week)
   const weekZoneMap={};
-  DAY_PLAN.forEach(dp=>{
-    const installDate=parseInt(dp.date); // e.g. 11
-    // find Sunday of the week containing this date
-    const dow=(firstDow+installDate-1)%7; // day of week (0=Sun)
-    const weekSunday=installDate-dow;
-    if(!weekZoneMap[weekSunday]) weekZoneMap[weekSunday]=dp;
-  });
+  if(_calMonthIdx===0){
+    DAY_PLAN.forEach(dp=>{
+      const installDate=parseInt(dp.date); // e.g. 11
+      // find Sunday of the week containing this date
+      const dow=(firstDow+installDate-1)%7; // day of week (0=Sun)
+      const weekSunday=installDate-dow;
+      if(!weekZoneMap[weekSunday]) weekZoneMap[weekSunday]=dp;
+    });
+  }
 
   for(let d=1;d<=daysInMonth;d++){
     const dp=installDateMap[d];
     const isInstall=!!dp;
     const isToday=isThisMonth&&d===todayDate;
     const isSel=selectedDay===d;
-    const installs=db.filter(r=>getEntryCalDate(r)===d);
+    const installs=monthRows.filter(r=>getEntryCalDate(r)===d);
     const basePins=[];
     const dow2=(firstDow+d-1)%7;
     const isWeekend=dow2===0||dow2===6;
@@ -1692,10 +1727,11 @@ function renderCalendar(){
 }
 
 function selectDay(d){
-  // Check if this date has any entries at all
-  const hasEntries=db.some(r=>getEntryCalDate(r)===d);
+  // Check if this date has any entries in the currently-shown month
+  const hasEntries=db.some(r=>getEntryCalDate(r)===d && getEntryMonthIdx(r)===_calMonthIdx);
   if(!hasEntries){
-    // Still handle DAY_PLAN detail view for days with plans but no entries yet
+    // Still handle DAY_PLAN detail view for April days with plans but no entries yet
+    if(_calMonthIdx!==0) return;
     const installDateMap={};
     DAY_PLAN.forEach(dp=>{ installDateMap[parseInt(dp.date)]=dp; });
     if(!installDateMap[d]) return;
@@ -1704,10 +1740,11 @@ function selectDay(d){
     if(selectedDay) setTimeout(()=>document.getElementById('cal-detail').scrollIntoView({behavior:'smooth',block:'nearest'}),50);
     return;
   }
-  // Jump to Route Planner for this day
-  window.routeSelectedDays=new Set([d]);
-  window.routeActiveDay=d;
-  try{ localStorage.setItem('blr_route_day',d); }catch(e){}
+  // Jump to Route Planner for this day (encode rid for the active month)
+  const rid = _ridEncode(_calMonthIdx, d);
+  window.routeSelectedDays=new Set([rid]);
+  window.routeActiveDay=rid;
+  try{ localStorage.setItem('blr_route_day',rid); }catch(e){}
   showPage('route');
 }
 
