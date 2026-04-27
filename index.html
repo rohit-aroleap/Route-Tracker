@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.113</title>
+<title>BLR Tracker · v1.114</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -531,7 +531,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.113';
+const APP_VERSION = 'v1.114';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -1022,6 +1022,55 @@ const DAY_PLAN = [
   {day:6,date:"16 Apr",dateLabel:"Thursday, 16 April",zone:"South",label:"South — Banashankari",color:"#9f1239",bg:"#FFE4E6"},
   {day:7,date:"17 Apr",dateLabel:"Friday, 17 April",zone:"Outer",label:"Outer — Attibele, Nelamangala, Chandapura",color:"#374151",bg:"#F3F4F6"},
 ];
+
+/* ─── Sheet month tabs (v1.114) ─────────────────────────────────────
+   Edit Data tab has a strip of month buttons (Apr/May/Jun/Jul).
+   April keeps legacy behaviour (uses DAY_PLAN, bare-day sheetOrders
+   keys). Other months scope rows by parsing month from r.date,
+   and use composite "M-D" sheetOrders keys to avoid colliding with
+   April's bare-day keys. Day-lock UI stays April-only for now —
+   the lock storage layer is also bare-day keyed and would need a
+   migration to support per-month locks safely. */
+const SHEET_MONTHS = [
+  {m:3, y:2026, label:'April', short:'Apr', days:30},
+  {m:4, y:2026, label:'May',   short:'May', days:31},
+  {m:5, y:2026, label:'June',  short:'Jun', days:30},
+  {m:6, y:2026, label:'July',  short:'Jul', days:31},
+];
+let _sheetMonthIdx = (function(){
+  try{
+    const v = localStorage.getItem('blr_sheet_month');
+    if(v !== null){ const i = parseInt(v); if(i>=0 && i<SHEET_MONTHS.length) return i; }
+  } catch(e){}
+  const now = new Date();
+  const idx = SHEET_MONTHS.findIndex(s => s.m === now.getMonth() && s.y === now.getFullYear());
+  return idx >= 0 ? idx : 0;
+})();
+function setSheetMonth(idx){
+  if(idx < 0 || idx >= SHEET_MONTHS.length) return;
+  if(idx === _sheetMonthIdx) return;
+  _sheetMonthIdx = idx;
+  try{ localStorage.setItem('blr_sheet_month', String(idx)); } catch(e){}
+  window._sheetShouldScroll = true;
+  if(typeof renderSheet === 'function') renderSheet();
+}
+/* Which SHEET_MONTHS index a row belongs to. Legacy rows with r.day
+   1..7 are always April (DAY_PLAN). Otherwise parse month name from
+   r.date — "21 Apr", "21st April", "12 May", "1 Jun", "10 Jul" etc. */
+function getEntryMonthIdx(r){
+  if(r && r.day >= 1 && r.day <= 7) return 0;
+  if(r && r.date){
+    const ml = String(r.date).toLowerCase();
+    for(let i = 0; i < SHEET_MONTHS.length; i++){
+      const s = SHEET_MONTHS[i];
+      if(ml.indexOf(s.short.toLowerCase()) !== -1 || ml.indexOf(s.label.toLowerCase()) !== -1) return i;
+    }
+  }
+  return 0; // unknown → April for back-compat
+}
+function _sheetOrderKey(monthIdx, calDay){
+  return monthIdx === 0 ? String(calDay) : (SHEET_MONTHS[monthIdx].m + 1) + '-' + calDay;
+}
 
 const SEED = [
   {name:"Rahul",phone:"8848472106",area:"Yelahanka",pin:"560064",date:"11th April",day:1,status:"confirmed",zone:"North"},
@@ -3140,7 +3189,22 @@ function renderSheet(){
   if(active && active.closest && active.closest('#sheet-wrap') &&
      (active.tagName==='INPUT' || active.tagName==='SELECT' || active.tagName==='TEXTAREA') &&
      !active.disabled) return;
-  let html=`<div class="tbl-wrap"><table id="sheet-table" style="table-layout:auto">
+  const monthIdx = _sheetMonthIdx;
+  const SM = SHEET_MONTHS[monthIdx];
+  const isApril = monthIdx === 0;
+  const monthShort = SM.short;
+  const lastDay = SM.days;
+
+  // Month tab strip
+  let tabsHtml = `<div class="sheet-month-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;padding:0 2px">`;
+  SHEET_MONTHS.forEach((s, i) => {
+    const active = i === monthIdx;
+    const count = db.filter(r => getEntryMonthIdx(r) === i).length;
+    tabsHtml += `<button onclick="setSheetMonth(${i})" style="padding:6px 14px;border-radius:6px;border:1px solid ${active?'var(--ink)':'var(--border)'};background:${active?'var(--ink)':'transparent'};color:${active?'#fff':'var(--ink2)'};font-family:var(--sans);font-size:12px;font-weight:${active?'600':'400'};cursor:pointer;transition:all 0.15s">${s.label} ${s.y}${count?` <span style="opacity:0.7;font-size:11px">· ${count}</span>`:''}</button>`;
+  });
+  tabsHtml += `</div>`;
+
+  let html = tabsHtml + `<div class="tbl-wrap"><table id="sheet-table" style="table-layout:auto">
     <thead><tr>
       <th style="width:22px"></th>
       <th style="width:130px">Name</th><th style="width:120px">Phone</th>
@@ -3149,40 +3213,43 @@ function renderSheet(){
       <th style="width:180px">Notes</th><th style="width:32px"></th>
     </tr></thead>`;
 
-  for(let calDay=1;calDay<=30;calDay++){
-    const planDay=DAY_PLAN.find(dp=>parseInt(dp.date)===calDay);
-    const raw=db.filter(r=>getEntryCalDate(r)===calDay);
+  for(let calDay=1;calDay<=lastDay;calDay++){
+    const planDay = isApril ? DAY_PLAN.find(dp=>parseInt(dp.date)===calDay) : null;
+    const raw=db.filter(r=>getEntryCalDate(r)===calDay && getEntryMonthIdx(r)===monthIdx);
     // Apply saved order if available, append any new entries not yet in order
+    const orderKey = _sheetOrderKey(monthIdx, calDay);
     let rows=raw;
-    if(sheetOrders[calDay]){
-      const ordered=sheetOrders[calDay].map(id=>raw.find(r=>r.id===id)).filter(Boolean);
-      const newEntries=raw.filter(r=>!sheetOrders[calDay].includes(r.id));
+    if(sheetOrders[orderKey]){
+      const ordered=sheetOrders[orderKey].map(id=>raw.find(r=>r.id===id)).filter(Boolean);
+      const newEntries=raw.filter(r=>!sheetOrders[orderKey].includes(r.id));
       rows=[...ordered,...newEntries];
-      if(!window._sheetDragging) sheetOrders[calDay]=rows.map(r=>r.id); // keep clean, but not during drag
+      if(!window._sheetDragging) sheetOrders[orderKey]=rows.map(r=>r.id); // keep clean, but not during drag
     }
-    const dowIdx=new Date(2026,3,calDay).getDay();
+    const dowIdx=new Date(SM.y, SM.m, calDay).getDay();
     const dowLabel=DOW_LABELS[dowIdx];
-    const isWeekend=dowIdx===0||dowIdx===6;
 
     const headerBg = '#EEF5EE';
 
-    const dayLocked = isDayLocked(calDay);
-    const lockInfo = _dayLocks[calDay] || null;
+    // Day locks are still keyed by bare day number, so they only apply when
+    // viewing April. Other months show as unlocked and the lock button is
+    // hidden — full per-month locking is a follow-up.
+    const dayLocked = isApril && isDayLocked(calDay);
+    const lockInfo = isApril ? (_dayLocks[calDay] || null) : null;
     const lockedAtText = (lockInfo && lockInfo.lockedAt) ? (()=>{try{const d=new Date(lockInfo.lockedAt);return d.toLocaleDateString('en-IN',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit'});}catch(e){return '';}})() : '';
     const lockedByName = lockInfo ? (String(lockInfo.lockedBy||'').split('@')[0]) : '';
-    html+=`<tbody class="sheet-group" data-calday="${calDay}">`;
+    html+=`<tbody class="sheet-group" data-calday="${calDay}" data-month="${monthIdx}">`;
     html+=`<tr class="sheet-day-header${dayLocked?' locked':''}"><td colspan="8" style="background:${dayLocked?'#FEF3C7':headerBg};padding:6px 14px;border-top:1px solid ${dayLocked?'#FCD34D':'#E0E0E0'};">
-      <span style="font-family:var(--mono);font-size:11px;font-weight:${planDay?'600':'400'};color:${dayLocked?'#92400E':'#444'};text-transform:uppercase;letter-spacing:0.07em">${dayLocked?'🔒 ':''}${calDay} Apr (${dowLabel})</span>
+      <span style="font-family:var(--mono);font-size:11px;font-weight:${planDay?'600':'400'};color:${dayLocked?'#92400E':'#444'};text-transform:uppercase;letter-spacing:0.07em">${dayLocked?'🔒 ':''}${calDay} ${monthShort} (${dowLabel})</span>
       ${dayLocked?'':`<button onclick="addSheetRow(${calDay})" style="margin-left:10px;font-size:11px;padding:1px 8px;border-radius:4px;border:1px solid #ccc;background:transparent;color:#888;cursor:pointer;font-family:var(--sans)">+ Add row</button>`}
       ${rows.length?`<span style="margin-left:8px;font-size:11px;color:${dayLocked?'#92400E':'#888'};">${rows.length} entr${rows.length===1?'y':'ies'}</span>`:''}
       ${dayLocked?`<span class="day-lock-label">Locked${lockedByName?' by '+lockedByName:''}${lockedAtText?' · '+lockedAtText:''}</span>`:''}
-      ${isAdmin()?`<button class="day-lock-btn${dayLocked?' locked':''}" onclick="${dayLocked?'unlockDay':'lockDay'}(${calDay})">${dayLocked?'Unlock':'🔓 Lock day'}</button>`:''}
+      ${(isApril && isAdmin())?`<button class="day-lock-btn${dayLocked?' locked':''}" onclick="${dayLocked?'unlockDay':'lockDay'}(${calDay})">${dayLocked?'Unlock':'🔓 Lock day'}</button>`:''}
     </td></tr>`;
     rows.forEach(r=>{ html+=sheetRow(r); });
     html+=`</tbody>`;
   }
 
-  const unassigned=db.filter(r=>!getEntryCalDate(r));
+  const unassigned=monthIdx===0 ? db.filter(r=>!getEntryCalDate(r)) : [];
   if(unassigned.length){
     html+=`<tbody class="sheet-group" data-calday="0"><tr class="sheet-day-header"><td colspan="8" style="background:var(--surface2);padding:7px 14px;border-top:2px solid var(--border)">
       <span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--ink2);text-transform:uppercase;letter-spacing:0.07em">No date assigned</span>
@@ -3203,13 +3270,25 @@ function renderSheet(){
   if(_mainEl && _mainEl.scrollTop !== _prevScrollTop) _mainEl.scrollTop = _prevScrollTop;
   initSheetDrag();
   updateLockIndicators();
-  // Auto-scroll to today's date section
+  // Auto-scroll to today's date section — only when today actually falls
+  // inside the currently-displayed month. If the user picked a different
+  // month, leave the scroll position alone.
   if(window._sheetShouldScroll){
     window._sheetShouldScroll=false;
-    setTimeout(()=>{
-      const todayGroup=wrap.querySelector(`.sheet-group[data-calday="${todayCalDay()}"]`);
-      if(todayGroup) todayGroup.scrollIntoView({behavior:'smooth',block:'start'});
-    },100);
+    const SMnow = SHEET_MONTHS[_sheetMonthIdx];
+    const today = new Date();
+    if(today.getMonth() === SMnow.m && today.getFullYear() === SMnow.y){
+      setTimeout(()=>{
+        const todayGroup=wrap.querySelector(`.sheet-group[data-calday="${todayCalDay()}"]`);
+        if(todayGroup) todayGroup.scrollIntoView({behavior:'smooth',block:'start'});
+      },100);
+    } else {
+      // Switched to a non-current month — scroll to top so day 1 is visible.
+      setTimeout(()=>{
+        const _mainEl2 = document.querySelector('.main');
+        if(_mainEl2) _mainEl2.scrollTop = 0;
+      }, 50);
+    }
   }
 }
 
@@ -3232,8 +3311,12 @@ function initSheetDrag(){
         const oldCalDay=parseInt(evt.from.dataset.calday);
         if(!rowId) return;
 
-        // Day-lock guard: revert if source or destination day is locked
-        if(isDayLocked(oldCalDay) || isDayLocked(newCalDay)){
+        const monthIdx = (typeof _sheetMonthIdx === 'number') ? _sheetMonthIdx : 0;
+        const SM = SHEET_MONTHS[monthIdx];
+        const isApril = monthIdx === 0;
+
+        // Day-lock guard (April only — locks aren't scoped per-month yet)
+        if(isApril && (isDayLocked(oldCalDay) || isDayLocked(newCalDay))){
           dayLockedToast(isDayLocked(newCalDay)?newCalDay:oldCalDay);
           renderSheet();
           return;
@@ -3244,7 +3327,8 @@ function initSheetDrag(){
         [evt.from, evt.to].forEach(tbody=>{
           const day=parseInt(tbody.dataset.calday);
           if(day>0){
-            sheetOrders[day]=[...tbody.querySelectorAll('.sheet-data-row')]
+            const k = _sheetOrderKey(monthIdx, day);
+            sheetOrders[k]=[...tbody.querySelectorAll('.sheet-data-row')]
               .map(tr=>parseInt(tr.dataset.id)).filter(Boolean);
           }
         });
@@ -3253,12 +3337,12 @@ function initSheetDrag(){
         if(newCalDay!==oldCalDay){
           const entry=db.find(r=>r.id===rowId);
           if(entry){
-            const planDay=DAY_PLAN.find(dp=>parseInt(dp.date)===newCalDay);
-            entry.date=newCalDay>0?newCalDay+' Apr':'';
-            entry.day=planDay?planDay.day:null;
+            const planDay = isApril ? DAY_PLAN.find(dp=>parseInt(dp.date)===newCalDay) : null;
+            entry.date = newCalDay>0 ? (newCalDay + ' ' + SM.short) : '';
+            entry.day = planDay?planDay.day:null;
             _dirtyRows.add(rowId);
             updateStats();
-            toast('Moved to '+newCalDay+' Apr');
+            toast('Moved to '+newCalDay+' '+SM.short);
           }
         }
 
@@ -3310,11 +3394,15 @@ function updateEntryLocation(id,value){
 }
 
 function addSheetRow(calDate){
-  if(isDayLocked(calDate)){ dayLockedToast(calDate); return; }
-  const planDay=DAY_PLAN.find(dp=>parseInt(dp.date)===calDate);
+  // Day-lock applies to April only (current scope of the lock storage).
+  const monthIdx = (typeof _sheetMonthIdx === 'number') ? _sheetMonthIdx : 0;
+  const SM = SHEET_MONTHS[monthIdx];
+  const isApril = monthIdx === 0;
+  if(isApril && isDayLocked(calDate)){ dayLockedToast(calDate); return; }
+  const planDay = isApril ? DAY_PLAN.find(dp=>parseInt(dp.date)===calDate) : null;
   const entry={id:allocId(),name:'',phone:'',area:'',pin:'',
-    date:calDate+' Apr',
-    day:planDay?planDay.day:null,
+    date: calDate + ' ' + SM.short,
+    day: planDay?planDay.day:null,
     status:'',zone:'',notes:''};
   db.push(entry);
   _dirtyRows.add(entry.id);
