@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.115</title>
+<title>BLR Tracker · v1.116</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -531,7 +531,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.115';
+const APP_VERSION = 'v1.116';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -2398,14 +2398,35 @@ function renderRouteDayTabs(){
   }
   const sel=window.routeSelectedDays;
   const isMulti=sel.size>1;
-  const pillsHtml=allCalDates.map(calDate=>{
+  // Split into "old" (more than 3 days old) and "recent + upcoming" tabs.
+  // Older ones go into a dropdown to keep the bar scannable.
+  const RECENT_DAYS = 3;
+  const today = todayCalDay();
+  const cutoff = today - RECENT_DAYS;
+  const oldDates    = allCalDates.filter(d=>d <  cutoff);
+  const recentDates = allCalDates.filter(d=>d >= cutoff);
+  const oldSelected = oldDates.find(d=>sel.has(d)) || null;
+  // Old-installations dropdown
+  let oldDropdownHtml = '';
+  if(oldDates.length){
+    const opts = oldDates.map(d=>{
+      const dp=dayInfo(d);
+      const cnt=getRouteStops(d).length;
+      return `<option value="${d}"${oldSelected===d?' selected':''}>${dp.date} · ${cnt} stop${cnt===1?'':'s'}</option>`;
+    }).join('');
+    const placeholder = oldSelected
+      ? ''
+      : `<option value="" selected disabled>📁 Old installations (${oldDates.length})</option>`;
+    oldDropdownHtml = `<select onchange="if(this.value)selectRouteDay(parseInt(this.value))" style="padding:7px 12px;border-radius:20px;border:1.5px solid ${oldSelected?'var(--ink)':'var(--border)'};background:${oldSelected?'var(--surface2)':'var(--surface)'};color:var(--ink2);font-size:12px;font-family:var(--sans);cursor:pointer;flex-shrink:0;height:34px;${oldSelected?'font-weight:600;':''}">${placeholder}${opts}</select>`;
+  }
+  const pillsHtml=recentDates.map(calDate=>{
     const cnt=getRouteStops(calDate).length;
     const dp=dayInfo(calDate);
     const active=sel.has(calDate);
     return `<button onclick="toggleRouteDay(${calDate})" data-active="${active?'1':'0'}" style="position:relative;padding:7px 14px;border-radius:20px;border:1.5px solid ${active?dp.color:'var(--border)'};background:${active?dp.bg:'var(--surface)'};color:${active?dp.color:'var(--ink2)'};font-size:12px;font-family:var(--sans);cursor:pointer;font-weight:${active?'600':'400'};transition:all 0.15s;flex-shrink:0;white-space:nowrap">${dp.date} <span style="opacity:0.7">${cnt} stops</span>${active&&isMulti?`<span style="position:absolute;top:-3px;right:-3px;width:7px;height:7px;border-radius:50%;background:${dp.color};border:1.5px solid var(--bg)"></span>`:''}
     </button>`;
   }).join('');
-  tabs.innerHTML=`<div id="route-day-tabs-scroll" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin;align-items:center">${pillsHtml}${isMulti?`<button onclick="clearMultiDay()" style="padding:5px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--ink2);font-size:11px;font-family:var(--mono);cursor:pointer;flex-shrink:0">✕ single view</button>`:''}</div>${isMulti?`<div style="margin-top:7px;font-size:11px;color:var(--ink3);font-family:var(--mono)">Multi-date view — markers are colour-coded · use <strong>Move to →</strong> on each stop to reschedule</div>`:''}`;
+  tabs.innerHTML=`<div id="route-day-tabs-scroll" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin;align-items:center">${oldDropdownHtml}${pillsHtml}${isMulti?`<button onclick="clearMultiDay()" style="padding:5px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--ink2);font-size:11px;font-family:var(--mono);cursor:pointer;flex-shrink:0">✕ single view</button>`:''}</div>${isMulti?`<div style="margin-top:7px;font-size:11px;color:var(--ink3);font-family:var(--mono)">Multi-date view — markers are colour-coded · use <strong>Move to →</strong> on each stop to reschedule</div>`:''}`;
   // Scroll active tab into view
   setTimeout(()=>{
     const scrollEl=document.getElementById('route-day-tabs-scroll');
