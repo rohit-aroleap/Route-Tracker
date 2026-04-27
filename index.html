@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.117</title>
+<title>BLR Tracker · v1.118</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -531,7 +531,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.117';
+const APP_VERSION = 'v1.118';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -1073,35 +1073,35 @@ function _sheetOrderKey(monthIdx, calDay){
   return monthIdx === 0 ? String(calDay) : (SHEET_MONTHS[monthIdx].m + 1) + '-' + calDay;
 }
 
-/* Route Planner uses an independent month index so the user can flip
-   between April / May / Jun / Jul there too. Same SHEET_MONTHS list. */
-let _routeMonthIdx = (function(){
-  try{
-    const v = localStorage.getItem('blr_route_month');
-    if(v !== null){ const i = parseInt(v); if(i>=0 && i<SHEET_MONTHS.length) return i; }
-  } catch(e){}
+/* Route Planner shows all months inline as one continuous list of
+   future dates (no month tab strip). Each "rid" encodes both month and
+   day-of-month: rid = monthIdx*100 + day. April rids (monthIdx=0) equal
+   the bare day, so existing localStorage / routeOrders keep working. */
+function _ridEncode(monthIdx, day){ return (monthIdx|0)*100 + (day|0); }
+function _ridDecode(rid){ rid = parseInt(rid)||0; return { monthIdx: Math.floor(rid/100), day: rid%100 }; }
+function _ridForEntry(r){ return _ridEncode(getEntryMonthIdx(r), getEntryCalDate(r)||0); }
+function _ridAbsDate(rid){
+  const {monthIdx, day} = _ridDecode(rid);
+  const sm = SHEET_MONTHS[monthIdx] || SHEET_MONTHS[0];
+  return new Date(sm.y, sm.m, day);
+}
+function _ridDateLabel(rid){
+  const {monthIdx, day} = _ridDecode(rid);
+  const sm = SHEET_MONTHS[monthIdx] || SHEET_MONTHS[0];
+  return `${day} ${sm.short}`;
+}
+function _todayRid(){
   const now = new Date();
   const idx = SHEET_MONTHS.findIndex(s => s.m === now.getMonth() && s.y === now.getFullYear());
-  return idx >= 0 ? idx : 0;
-})();
-function setRouteMonth(idx){
-  if(idx < 0 || idx >= SHEET_MONTHS.length) return;
-  if(idx === _routeMonthIdx) return;
-  _routeMonthIdx = idx;
-  try{ localStorage.setItem('blr_route_month', String(idx)); } catch(e){}
-  // Reset selection to the soonest day-with-stops in the new month
-  window.routeSelectedDays = null;
-  window.routeActiveDay = null;
-  if(typeof renderRouteDayTabs === 'function') renderRouteDayTabs();
-  if(typeof renderRouteView === 'function') renderRouteView();
+  return _ridEncode(idx>=0?idx:0, now.getDate());
 }
-/* routeOrders is the only day-keyed map. Same composite-key scheme as
-   sheetOrders: April uses bare "12", other months use "M-D" — keeps
-   existing data working and avoids cross-month collisions. */
-function _routeOrderKey(dayNum){
-  const m = (typeof _routeMonthIdx === 'number') ? _routeMonthIdx : 0;
-  return _sheetOrderKey(m, dayNum);
+/* routeOrders key derived from rid: April → bare "12", others → "M-D". */
+function _routeOrderKey(rid){
+  const {monthIdx, day} = _ridDecode(rid);
+  return _sheetOrderKey(monthIdx, day);
 }
+// Legacy no-op (the month tab strip was removed in v1.118)
+function setRouteMonth(){}
 
 const SEED = [
   {name:"Rahul",phone:"8848472106",area:"Yelahanka",pin:"560064",date:"11th April",day:1,status:"confirmed",zone:"North"},
@@ -1465,7 +1465,7 @@ function showPage(id){
     if(!window.routeActiveDay){
       try{ const saved=localStorage.getItem('blr_route_day'); if(saved) window.routeActiveDay=parseInt(saved); }catch(e){}
     }
-    if(!window.routeActiveDay) window.routeActiveDay=todayCalDay();
+    if(!window.routeActiveDay) window.routeActiveDay=_todayRid();
     if(!window.routeSelectedDays) window.routeSelectedDays=new Set([window.routeActiveDay]);
     renderRouteDayTabs();
     setTimeout(()=>{
@@ -2425,79 +2425,72 @@ function initRouteMap(){
 function renderRouteDayTabs(){
   const tabs=document.getElementById('route-day-tabs');
   if(!tabs) return;
-  const monthIdx = (typeof _routeMonthIdx === 'number') ? _routeMonthIdx : 0;
-  const SM = SHEET_MONTHS[monthIdx];
 
-  // Month tab strip (Apr/May/Jun/Jul) above the day pills
-  let monthTabsHtml = `<div class="route-month-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">`;
-  SHEET_MONTHS.forEach((s, i) => {
-    const active = i === monthIdx;
-    const cnt = db.filter(r=>getEntryMonthIdx(r)===i).length;
-    monthTabsHtml += `<button onclick="setRouteMonth(${i})" style="padding:5px 12px;border-radius:6px;border:1px solid ${active?'var(--ink)':'var(--border)'};background:${active?'var(--ink)':'transparent'};color:${active?'#fff':'var(--ink2)'};font-family:var(--sans);font-size:11px;font-weight:${active?'600':'400'};cursor:pointer;transition:all 0.15s">${s.label} ${s.y}${cnt?` <span style="opacity:0.7">· ${cnt}</span>`:''}</button>`;
+  // Build the full set of route-ids (rid = monthIdx*100 + day) across ALL months
+  // and sort by absolute calendar date so April → May → June → July flows inline.
+  const ridSet=new Set();
+  db.forEach(r=>{
+    const day=getEntryCalDate(r);
+    if(day==null) return;
+    ridSet.add(_ridEncode(getEntryMonthIdx(r), day));
   });
-  monthTabsHtml += `</div>`;
+  const allRids=[...ridSet].sort((a,b)=>_ridAbsDate(a) - _ridAbsDate(b));
 
-  // Calendar dates with at least one row IN THIS MONTH
-  const allCalDates=[...new Set(
-    db.filter(r=>getEntryMonthIdx(r)===monthIdx)
-      .map(r=>getEntryCalDate(r))
-      .filter(d=>d!==null)
-  )].sort((a,b)=>a-b);
-
-  if(!allCalDates.length){
-    tabs.innerHTML = monthTabsHtml + `<div style="padding:14px 4px;color:var(--ink3);font-size:12px;font-family:var(--sans)">No installations scheduled in ${SM.label} ${SM.y} yet.</div>`;
+  if(!allRids.length){
+    tabs.innerHTML = `<div style="padding:14px 4px;color:var(--ink3);font-size:12px;font-family:var(--sans)">No installations scheduled yet.</div>`;
     return;
   }
 
   if(!window.routeSelectedDays) window.routeSelectedDays=new Set();
-  // If current selection isn't in this month's dates, pick a sensible default:
-  // soonest date >= today (in calendar terms), else first date.
-  if(![...window.routeSelectedDays].some(d=>allCalDates.includes(d))){
-    const todayDate = new Date(); todayDate.setHours(0,0,0,0);
+  // If current selection isn't valid anymore, pick the soonest rid >= today,
+  // else the latest past one.
+  if(![...window.routeSelectedDays].some(rid=>ridSet.has(rid))){
+    const todayMs = new Date(); todayMs.setHours(0,0,0,0);
     let pick = null;
-    for(const d of allCalDates){
-      const dt = new Date(SM.y, SM.m, d); dt.setHours(0,0,0,0);
-      if(dt >= todayDate){ pick = d; break; }
+    for(const rid of allRids){
+      const dt = _ridAbsDate(rid); dt.setHours(0,0,0,0);
+      if(dt.getTime() >= todayMs.getTime()){ pick = rid; break; }
     }
-    if(pick == null) pick = allCalDates[allCalDates.length-1];
+    if(pick == null) pick = allRids[allRids.length-1];
     window.routeSelectedDays = new Set([pick]);
     window.routeActiveDay = pick;
   }
   const sel=window.routeSelectedDays;
   const isMulti=sel.size>1;
 
-  // Old vs recent split — uses ABSOLUTE date so future months are all "recent"
-  // and only the actual past >3 days of April get folded into the dropdown.
+  // Old (>3 days ago) vs recent split using absolute calendar date.
   const RECENT_DAYS = 3;
   const todayMid = new Date(); todayMid.setHours(0,0,0,0);
   const cutoffMs = todayMid.getTime() - RECENT_DAYS*24*60*60*1000;
-  const oldDates=[], recentDates=[];
-  allCalDates.forEach(d=>{
-    const dt=new Date(SM.y, SM.m, d).getTime();
-    (dt < cutoffMs ? oldDates : recentDates).push(d);
+  const oldRids=[], recentRids=[];
+  allRids.forEach(rid=>{
+    const dt = _ridAbsDate(rid).getTime();
+    (dt < cutoffMs ? oldRids : recentRids).push(rid);
   });
-  const oldSelected = oldDates.find(d=>sel.has(d)) || null;
+  const oldSelected = oldRids.find(rid=>sel.has(rid)) || null;
 
   let oldDropdownHtml = '';
-  if(oldDates.length){
-    const opts = oldDates.map(d=>{
-      const dp=dayInfo(d, monthIdx);
-      const cnt=getRouteStops(d).length;
-      return `<option value="${d}"${oldSelected===d?' selected':''}>${dp.date} · ${cnt} stop${cnt===1?'':'s'}</option>`;
+  if(oldRids.length){
+    const opts = oldRids.map(rid=>{
+      const {monthIdx, day} = _ridDecode(rid);
+      const dp=dayInfo(day, monthIdx);
+      const cnt=getRouteStops(rid).length;
+      return `<option value="${rid}"${oldSelected===rid?' selected':''}>${dp.date} · ${cnt} stop${cnt===1?'':'s'}</option>`;
     }).join('');
     const placeholder = oldSelected
       ? ''
-      : `<option value="" selected disabled>📁 Old installations (${oldDates.length})</option>`;
+      : `<option value="" selected disabled>📁 Old installations (${oldRids.length})</option>`;
     oldDropdownHtml = `<select onchange="if(this.value)selectRouteDay(parseInt(this.value))" style="padding:7px 12px;border-radius:20px;border:1.5px solid ${oldSelected?'var(--ink)':'var(--border)'};background:${oldSelected?'var(--surface2)':'var(--surface)'};color:var(--ink2);font-size:12px;font-family:var(--sans);cursor:pointer;flex-shrink:0;height:34px;${oldSelected?'font-weight:600;':''}">${placeholder}${opts}</select>`;
   }
-  const pillsHtml=recentDates.map(calDate=>{
-    const cnt=getRouteStops(calDate).length;
-    const dp=dayInfo(calDate, monthIdx);
-    const active=sel.has(calDate);
-    return `<button onclick="toggleRouteDay(${calDate})" data-active="${active?'1':'0'}" style="position:relative;padding:7px 14px;border-radius:20px;border:1.5px solid ${active?dp.color:'var(--border)'};background:${active?dp.bg:'var(--surface)'};color:${active?dp.color:'var(--ink2)'};font-size:12px;font-family:var(--sans);cursor:pointer;font-weight:${active?'600':'400'};transition:all 0.15s;flex-shrink:0;white-space:nowrap">${dp.date} <span style="opacity:0.7">${cnt} stops</span>${active&&isMulti?`<span style="position:absolute;top:-3px;right:-3px;width:7px;height:7px;border-radius:50%;background:${dp.color};border:1.5px solid var(--bg)"></span>`:''}
+  const pillsHtml=recentRids.map(rid=>{
+    const {monthIdx, day} = _ridDecode(rid);
+    const cnt=getRouteStops(rid).length;
+    const dp=dayInfo(day, monthIdx);
+    const active=sel.has(rid);
+    return `<button onclick="toggleRouteDay(${rid})" data-active="${active?'1':'0'}" style="position:relative;padding:7px 14px;border-radius:20px;border:1.5px solid ${active?dp.color:'var(--border)'};background:${active?dp.bg:'var(--surface)'};color:${active?dp.color:'var(--ink2)'};font-size:12px;font-family:var(--sans);cursor:pointer;font-weight:${active?'600':'400'};transition:all 0.15s;flex-shrink:0;white-space:nowrap">${dp.date} <span style="opacity:0.7">${cnt} stops</span>${active&&isMulti?`<span style="position:absolute;top:-3px;right:-3px;width:7px;height:7px;border-radius:50%;background:${dp.color};border:1.5px solid var(--bg)"></span>`:''}
     </button>`;
   }).join('');
-  tabs.innerHTML=monthTabsHtml+`<div id="route-day-tabs-scroll" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin;align-items:center">${oldDropdownHtml}${pillsHtml}${isMulti?`<button onclick="clearMultiDay()" style="padding:5px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--ink2);font-size:11px;font-family:var(--mono);cursor:pointer;flex-shrink:0">✕ single view</button>`:''}</div>${isMulti?`<div style="margin-top:7px;font-size:11px;color:var(--ink3);font-family:var(--mono)">Multi-date view — markers are colour-coded · use <strong>Move to →</strong> on each stop to reschedule</div>`:''}`;
+  tabs.innerHTML=`<div id="route-day-tabs-scroll" style="display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin;align-items:center">${oldDropdownHtml}${pillsHtml}${isMulti?`<button onclick="clearMultiDay()" style="padding:5px 10px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--ink2);font-size:11px;font-family:var(--mono);cursor:pointer;flex-shrink:0">✕ single view</button>`:''}</div>${isMulti?`<div style="margin-top:7px;font-size:11px;color:var(--ink3);font-family:var(--mono)">Multi-date view — markers are colour-coded · use <strong>Move to →</strong> on each stop to reschedule</div>`:''}`;
   // Scroll active tab into view
   setTimeout(()=>{
     const scrollEl=document.getElementById('route-day-tabs-scroll');
@@ -2512,10 +2505,10 @@ function renderRouteDayTabs(){
   },0);
 }
 
-function getRouteStops(dayNum){
-  const monthIdx = (typeof _routeMonthIdx === 'number') ? _routeMonthIdx : 0;
-  const key = _routeOrderKey(dayNum);
-  const all = db.filter(r=>getEntryCalDate(r)===dayNum && getEntryMonthIdx(r)===monthIdx);
+function getRouteStops(rid){
+  const {monthIdx, day} = _ridDecode(rid);
+  const key = _routeOrderKey(rid);
+  const all = db.filter(r=>getEntryCalDate(r)===day && getEntryMonthIdx(r)===monthIdx);
   if(!routeOrders[key]){
     routeOrders[key]=all.map(r=>r.id);
   } else {
@@ -2567,7 +2560,7 @@ function toggleRouteDay(dayNum){
 }
 
 function clearMultiDay(){
-  const day=window.routeActiveDay||[...(window.routeSelectedDays||new Set())][0]||todayCalDay();
+  const day=window.routeActiveDay||[...(window.routeSelectedDays||new Set())][0]||_todayRid();
   window.routeSelectedDays=new Set([day]);
   renderRouteDayTabs();
   renderRouteView();
@@ -2750,10 +2743,11 @@ function copyStopDetails(id){
   });
 }
 
-function shareTechLink(guideNum, dayNum){
+function shareTechLink(guideNum, rid){
   const guideName=GUIDE_COLORS[guideNum]?GUIDE_COLORS[guideNum].label:'Guide';
+  const {monthIdx, day} = _ridDecode(rid);
   const base=location.href.replace(/\/[^/]*$/,'/');
-  const url=base+'tech.html?guide='+guideNum+'&date='+dayNum;
+  const url=base+'tech.html?guide='+guideNum+'&date='+day+(monthIdx?'&month='+monthIdx:'');
   navigator.clipboard.writeText(url).then(()=>{
     toast('📱 Tech link copied for '+guideName+' — share on WhatsApp');
   }).catch(()=>{
@@ -2764,11 +2758,12 @@ function shareTechLink(guideNum, dayNum){
   });
 }
 
-function copyGuideSchedule(guideNum, dayNum){
-  const dp=DAY_PLAN.find(d=>parseInt(d.date)===dayNum);
-  const dayLabel=dp?dp.dateLabel:'Day '+dayNum;
+function copyGuideSchedule(guideNum, rid){
+  const {monthIdx, day} = _ridDecode(rid);
+  const dp = monthIdx===0 ? DAY_PLAN.find(d=>parseInt(d.date)===day) : null;
+  const dayLabel = dp ? dp.dateLabel : _ridDateLabel(rid);
   const guideName=GUIDE_COLORS[guideNum]?GUIDE_COLORS[guideNum].label:'Guide';
-  const allStops=getSortedRouteStops(dayNum);
+  const allStops=getSortedRouteStops(rid);
   const stops=allStops.filter(r=>routeGuide[r.id]===guideNum);
   if(!stops.length){ toast('No stops assigned to '+guideName); return; }
 
@@ -2824,9 +2819,10 @@ function addWorkshopMarker(){
   routeMarkers.push(mk);
 }
 
-function drawRouteMap(dayNum){
+function drawRouteMap(rid){
   initRouteMap();
-  const dp=dayInfo(dayNum, _routeMonthIdx);
+  const {monthIdx, day} = _ridDecode(rid);
+  const dp=dayInfo(day, monthIdx);
 
   // Clear old markers/lines
   routeMarkers.forEach(m=>routeMap.removeLayer(m));
@@ -2835,7 +2831,7 @@ function drawRouteMap(dayNum){
   if(window._extraPolylines){ window._extraPolylines.forEach(p=>routeMap.removeLayer(p)); window._extraPolylines=[]; }
 
   // Use globally-sorted stop order (Murthy time-sorted → Divakar time-sorted → Unassigned)
-  const stops=getSortedRouteStops(dayNum);
+  const stops=getSortedRouteStops(rid);
 
   // Split stops by guide assignment
   const guideGroups={1:[],2:[],0:[]};
@@ -2937,11 +2933,11 @@ function sortGuideByTime(guide, dayNum){
   scheduleSave();
 }
 
-function optimiseRoute(dayNum){
-  dayNum=dayNum||window.routeActiveDay||[...(window.routeSelectedDays||new Set())][0];
-  if(!dayNum) return;
-  const monthIdx = (typeof _routeMonthIdx === 'number') ? _routeMonthIdx : 0;
-  const stops=db.filter(r=>getEntryCalDate(r)===dayNum && getEntryMonthIdx(r)===monthIdx);
+function optimiseRoute(rid){
+  rid=rid||window.routeActiveDay||[...(window.routeSelectedDays||new Set())][0];
+  if(!rid) return;
+  const {monthIdx, day} = _ridDecode(rid);
+  const stops=db.filter(r=>getEntryCalDate(r)===day && getEntryMonthIdx(r)===monthIdx);
   const withCoords=stops.filter(r=>getCoords(r));
   const noCoords=stops.filter(r=>!getCoords(r));
   if(withCoords.length<2){ toast('Not enough mapped stops to sort'); return; }
@@ -2962,17 +2958,18 @@ function optimiseRoute(dayNum){
     });
     sorted.push(remaining.splice(best,1)[0]);
   }
-  routeOrders[_routeOrderKey(dayNum)]=[...sorted,...noCoords].map(r=>r.id);
+  routeOrders[_routeOrderKey(rid)]=[...sorted,...noCoords].map(r=>r.id);
   scheduleSave();
   renderRouteView();
   toast('Route optimised by proximity');
 }
 
-function copyRouteText(dayNum){
-  dayNum=dayNum||window.routeActiveDay||[...(window.routeSelectedDays||new Set())][0];
-  if(!dayNum){ toast('Select a day first'); return; }
-  const stops=getRouteStops(dayNum);
-  const dp=dayInfo(dayNum, _routeMonthIdx);
+function copyRouteText(rid){
+  rid=rid||window.routeActiveDay||[...(window.routeSelectedDays||new Set())][0];
+  if(!rid){ toast('Select a day first'); return; }
+  const stops=getRouteStops(rid);
+  const {monthIdx, day} = _ridDecode(rid);
+  const dp=dayInfo(day, monthIdx);
   const lines=[`${dp.dateLabel} — Installation Route`,''];
   stops.forEach((r,i)=>{
     const t=routeStopTimes[r.id]?fmtTime(routeStopTimes[r.id]):'';
@@ -2991,11 +2988,13 @@ function renderMultiRouteStops(selectedDays){
 
   let totalStops=0;
 
-  const html=selectedDays.map(dayNum=>{
-    const dp=dayInfo(dayNum, _routeMonthIdx);
-    const stops=getRouteStops(dayNum);
+  const html=selectedDays.map(rid=>{
+    const {monthIdx: _mi, day: _d} = _ridDecode(rid);
+    const dp=dayInfo(_d, _mi);
+    const stops=getRouteStops(rid);
     totalStops+=stops.length;
-    const otherDays=selectedDays.filter(d=>d!==dayNum);
+    const otherDays=selectedDays.filter(d=>d!==rid);
+    const dayNum = rid; // legacy alias used by inline handlers below
 
     const stopsHtml=!stops.length
       ?`<div style="padding:12px 14px;color:var(--ink3);font-size:13px;font-style:italic">No stops for this day</div>`
@@ -3014,7 +3013,7 @@ function renderMultiRouteStops(selectedDays){
           let statusHtml='';
           if(confirmedTime) statusHtml=`<div style="margin-top:5px;padding-left:32px;font-size:11px;color:#2E7D32;font-weight:500">✓ Confirmed: ${fmtTime(confirmedTime)}</div>`;
           else if(availList.length) statusHtml=`<div style="margin-top:5px;padding-left:32px;font-size:11px;color:#1A56C4">${availList.length} slot${availList.length>1?'s':''} open: ${availList.map(t=>fmtTime(t)).join(', ')} — tap to confirm</div>`;
-          const moveHtml=otherDays.length?`<div style="margin-top:6px;padding-left:32px;display:flex;gap:4px;align-items:center;flex-wrap:wrap"><span style="font-size:10px;color:var(--ink3);font-family:var(--mono)">move to →</span>${otherDays.map(od=>{const odp=dayInfo(od, _routeMonthIdx);return `<button onmousedown="event.stopPropagation()" onclick="moveStopToDay(${r.id},${od})" style="font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid ${odp.color};background:${odp.bg};color:${odp.color};cursor:pointer;font-family:var(--mono);white-space:nowrap">${odp.date}</button>`;}).join('')}</div>`:''
+          const moveHtml=otherDays.length?`<div style="margin-top:6px;padding-left:32px;display:flex;gap:4px;align-items:center;flex-wrap:wrap"><span style="font-size:10px;color:var(--ink3);font-family:var(--mono)">move to →</span>${otherDays.map(od=>{const _od=_ridDecode(od);const odp=dayInfo(_od.day, _od.monthIdx);return `<button onmousedown="event.stopPropagation()" onclick="moveStopToDay(${r.id},${od})" style="font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid ${odp.color};background:${odp.bg};color:${odp.color};cursor:pointer;font-family:var(--mono);white-space:nowrap">${odp.date}</button>`;}).join('')}</div>`:''
           return `<div class="route-stop" data-id="${r.id}" data-day="${dayNum}" style="padding:10px 14px;border-bottom:0.5px solid var(--border2);cursor:grab;background:var(--surface);transition:background 0.1s" onmouseenter="this.style.background='var(--bg)'" onmouseleave="this.style.background='var(--surface)'">
             <div style="display:flex;align-items:center;gap:10px">
               <div style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:${dp.color};color:#fff;font-size:11px;font-weight:700;flex-shrink:0">${i+1}</div>
@@ -3080,9 +3079,10 @@ function drawMultiRouteMap(selectedDays){
   if(window._extraPolylines){ window._extraPolylines.forEach(p=>routeMap.removeLayer(p)); } window._extraPolylines=[];
 
   const allPoints=[];
-  selectedDays.forEach(dayNum=>{
-    const dp=dayInfo(dayNum, _routeMonthIdx);
-    const stops=getRouteStops(dayNum);
+  selectedDays.forEach(rid=>{
+    const {monthIdx: _mi, day: _d} = _ridDecode(rid);
+    const dp=dayInfo(_d, _mi);
+    const stops=getRouteStops(rid);
     const pts=[];
     stops.forEach((r,i)=>{
       const coords=getCoords(r); if(!coords) return;
@@ -3113,24 +3113,33 @@ function drawMultiRouteMap(selectedDays){
   setTimeout(()=>routeMap.invalidateSize(),100);
 }
 
-function moveStopToDay(entryId,targetDay){
+function moveStopToDay(entryId,targetRid){
   const entry=db.find(r=>r.id===entryId);
   if(!entry) return;
-  const dp=DAY_PLAN.find(d=>d.day===targetDay);
-  if(!dp) return;
-  const fromDay=entry.day;
-  entry.day=targetDay;
-  entry.date=dp.date;
+  const {monthIdx, day} = _ridDecode(targetRid);
+  // Compute the new date string + day-num
+  let newDateStr, newDayNum=null;
+  if(monthIdx===0){
+    const dp=DAY_PLAN.find(d=>parseInt(d.date)===day);
+    if(!dp) return;
+    newDateStr=dp.date; newDayNum=dp.day;
+  } else {
+    newDateStr=_ridDateLabel(targetRid); // e.g. "12 May"
+  }
+  const fromRid = _ridForEntry(entry);
+  const fromKey = _routeOrderKey(fromRid);
+  const toKey   = _routeOrderKey(targetRid);
+  entry.day=newDayNum;
+  entry.date=newDateStr;
   _dirtyRows.add(entryId);
-  // Update order lists
-  if(routeOrders[fromDay]) routeOrders[fromDay]=routeOrders[fromDay].filter(id=>id!==entryId);
-  if(!routeOrders[targetDay]) routeOrders[targetDay]=[];
-  routeOrders[targetDay].push(entryId);
+  if(routeOrders[fromKey]) routeOrders[fromKey]=routeOrders[fromKey].filter(id=>id!==entryId);
+  if(!routeOrders[toKey]) routeOrders[toKey]=[];
+  routeOrders[toKey].push(entryId);
   renderRouteDayTabs();
   renderRouteView();
   updateStats();
   scheduleSave();
-  toast(`Moved ${entry.name||'stop'} to ${dp.date}`);
+  toast(`Moved ${entry.name||'stop'} to ${newDateStr}`);
 }
 
 /* ─── PERSISTENCE ─── */
