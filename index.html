@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.114</title>
+<title>BLR Tracker · v1.115</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -531,7 +531,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.114';
+const APP_VERSION = 'v1.115';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -616,7 +616,13 @@ function initSheetLocking(){
 const ADMIN_EMAIL = 'rohit@aroleap.com';
 function isAdmin(){ return !!(_currentUser && _currentUser.email === ADMIN_EMAIL); }
 let _dayLocks = {}; // calDay(num) → { lockedBy, lockedAt }
-function isDayLocked(calDay){ return calDay != null && !!_dayLocks[calDay]; }
+// Day-lock system was retired in v1.115. isDayLocked is hardcoded to
+// false so every guard (renderSheet, addSheetRow, drag-reorder,
+// updateEntry, deleteRow, tech.html stepper) becomes a no-op. The
+// lockDay/unlockDay functions are also neutered below. Existing
+// meta/dayLocks data in Firebase is left in place (inert), so nothing
+// is destroyed and the feature is recoverable if needed later.
+function isDayLocked(calDay){ return false; }
 // For the lock check we cannot use getEntryCalDate — it prefers r.day (which
 // maps through DAY_PLAN, covering only 11–17 Apr) and would collapse later-
 // week rows back onto their week-1 slot. A row with r.date="26 Apr" but
@@ -650,21 +656,16 @@ function isRowDayLocked(row){
   return isDayLocked(rowCalDate(row));
 }
 function lockDay(calDay){
-  if(!isAdmin()){ toast('Only admin can lock days'); return; }
-  if(!_fbRef||!_isFirebaseReady){ toast('Not connected — try again'); return; }
-  if(!confirm('Lock '+calDay+' Apr?\n\nOnce locked, no one (including you) can edit any row on this day until you unlock it.')) return;
-  _fbRef.child('meta/dayLocks').child(String(calDay)).set({
-    lockedBy: _currentUser.email,
-    lockedAt: new Date().toISOString()
-  });
+  // Retired in v1.115 — feature removed.
+  toast('Day-lock feature has been removed.');
+  return;
 }
 function unlockDay(calDay){
-  if(!isAdmin()){ toast('Only admin can unlock days'); return; }
-  if(!_fbRef||!_isFirebaseReady){ toast('Not connected — try again'); return; }
-  if(!confirm('Unlock '+calDay+' Apr?\n\nRows for this day will become editable again.')) return;
-  _fbRef.child('meta/dayLocks').child(String(calDay)).remove();
+  // Retired in v1.115 — feature removed. Kept as a no-op so any
+  // pending UI bindings or stale tabs can't blow up.
+  return;
 }
-function dayLockedToast(calDay){ toast('🔒 '+(calDay||'Day')+' Apr is locked — no changes allowed'); }
+function dayLockedToast(calDay){ /* retired — locks removed */ }
 
 // Debug helper: run `debugLocks()` in the browser console to see which days
 // are locked and which rows the code thinks are locked (with the computed
@@ -3242,8 +3243,6 @@ function renderSheet(){
       <span style="font-family:var(--mono);font-size:11px;font-weight:${planDay?'600':'400'};color:${dayLocked?'#92400E':'#444'};text-transform:uppercase;letter-spacing:0.07em">${dayLocked?'🔒 ':''}${calDay} ${monthShort} (${dowLabel})</span>
       ${dayLocked?'':`<button onclick="addSheetRow(${calDay})" style="margin-left:10px;font-size:11px;padding:1px 8px;border-radius:4px;border:1px solid #ccc;background:transparent;color:#888;cursor:pointer;font-family:var(--sans)">+ Add row</button>`}
       ${rows.length?`<span style="margin-left:8px;font-size:11px;color:${dayLocked?'#92400E':'#888'};">${rows.length} entr${rows.length===1?'y':'ies'}</span>`:''}
-      ${dayLocked?`<span class="day-lock-label">Locked${lockedByName?' by '+lockedByName:''}${lockedAtText?' · '+lockedAtText:''}</span>`:''}
-      ${(isApril && isAdmin())?`<button class="day-lock-btn${dayLocked?' locked':''}" onclick="${dayLocked?'unlockDay':'lockDay'}(${calDay})">${dayLocked?'Unlock':'🔓 Lock day'}</button>`:''}
     </td></tr>`;
     rows.forEach(r=>{ html+=sheetRow(r); });
     html+=`</tbody>`;
