@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<title>Tech View · BLR Tracker · v1.119</title>
+<title>Tech View · BLR Tracker · v1.120</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -193,6 +193,29 @@ const DAY_PLAN = [
   {day:7,date:"17 Apr",dateLabel:"Friday, 17 April",zone:"Outer",label:"Outer — Attibele, Nelamangala",color:"#374151",bg:"#F3F4F6"},
 ];
 
+// Mirror of index.html SHEET_MONTHS — used to interpret ?month= URL param
+// and derive the matching routeOrders key for non-April months.
+const SHEET_MONTHS = [
+  {m:3, y:2026, label:'April', short:'Apr', days:30},
+  {m:4, y:2026, label:'May',   short:'May', days:31},
+  {m:5, y:2026, label:'June',  short:'Jun', days:30},
+  {m:6, y:2026, label:'July',  short:'Jul', days:31},
+];
+function getEntryMonthIdx(r){
+  if(r && r.day >= 1 && r.day <= 7) return 0;
+  if(r && r.date){
+    const ml = String(r.date).toLowerCase();
+    for(let i=0;i<SHEET_MONTHS.length;i++){
+      const s = SHEET_MONTHS[i];
+      if(ml.indexOf(s.short.toLowerCase()) !== -1 || ml.indexOf(s.label.toLowerCase()) !== -1) return i;
+    }
+  }
+  return 0;
+}
+function _routeOrderKeyFor(monthIdx, day){
+  return monthIdx === 0 ? String(day) : (SHEET_MONTHS[monthIdx].m + 1) + '-' + day;
+}
+
 const GUIDE_COLORS = {
   1:{color:'#1e40af',bg:'#DBEAFE',label:'Murthy'},
   2:{color:'#b45309',bg:'#FEF3C7',label:'Divakar'},
@@ -297,12 +320,14 @@ function rowCalDate(row){
   return null;
 }
 function isRowDayLocked(r){ return r && isDayLocked(rowCalDate(r)); }
-let guideNum, calDay, guideName, guideColor, dayLabel;
+let guideNum, calDay, monthIdx, routeKey, guideName, guideColor, dayLabel;
 
 /* ─── URL PARAMS ─── */
 const params = new URLSearchParams(location.search);
 guideNum = parseInt(params.get('guide'));
 calDay = parseInt(params.get('date'));
+monthIdx = parseInt(params.get('month')) || 0; // missing/0 → April (back-compat)
+if(monthIdx < 0 || monthIdx >= SHEET_MONTHS.length) monthIdx = 0;
 
 if(!guideNum || !calDay || !GUIDE_COLORS[guideNum]){
   document.getElementById('loading-screen').style.display='none';
@@ -314,8 +339,16 @@ if(!guideNum || !calDay || !GUIDE_COLORS[guideNum]){
 } else {
   guideName = GUIDE_COLORS[guideNum].label;
   guideColor = GUIDE_COLORS[guideNum].color;
-  const dp = DAY_PLAN.find(d=>parseInt(d.date)===calDay);
-  dayLabel = dp ? dp.dateLabel : calDay+' April';
+  routeKey = _routeOrderKeyFor(monthIdx, calDay);
+  if(monthIdx === 0){
+    const dp = DAY_PLAN.find(d=>parseInt(d.date)===calDay);
+    dayLabel = dp ? dp.dateLabel : calDay+' April';
+  } else {
+    const SM = SHEET_MONTHS[monthIdx];
+    const dt = new Date(SM.y, SM.m, calDay);
+    const dow = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dt.getDay()];
+    dayLabel = `${dow}, ${calDay} ${SM.label}`;
+  }
 
   document.getElementById('h-guide').textContent = guideName;
   document.getElementById('h-guide').style.color = guideColor;
@@ -325,7 +358,7 @@ if(!guideNum || !calDay || !GUIDE_COLORS[guideNum]){
 }
 
 /* ─── CACHE ─── */
-const CACHE_KEY='blr_tech_'+guideNum+'_'+calDay;
+const CACHE_KEY='blr_tech_'+guideNum+'_'+(monthIdx?monthIdx+'-':'')+calDay;
 function saveToCache(){
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify({
@@ -470,14 +503,15 @@ function getMyStops(){
   // (e.g. entries originally created for a different day but moved in the planner).
   // Fallback: filter by getEntryCalDate for days with no routeOrders saved yet.
   let dayEntries;
-  const order = routeOrders[calDay];
+  const order = routeOrders[routeKey];
   if(Array.isArray(order)){
     // routeOrders exists for this day (even if empty) — use it authoritatively.
     // An empty array means the admin explicitly cleared all stops for this day.
     dayEntries = order.map(id=>db.find(r=>r.id===id)).filter(Boolean);
   } else {
     // No routeOrders saved for this day yet — fall back to date-based filter
-    dayEntries = db.filter(r=>getEntryCalDate(r)===calDay);
+    // (scope to the same calendar month so May 2 doesn't pick up April 2 rows).
+    dayEntries = db.filter(r=>getEntryCalDate(r)===calDay && getEntryMonthIdx(r)===monthIdx);
   }
   const myStops = dayEntries.filter(r=>routeGuide[r.id]===guideNum);
   // Sort by confirmed time, preserving routeOrders position for untimed stops
