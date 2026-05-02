@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.120</title>
+<title>BLR Tracker · v1.121</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -531,7 +531,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.120';
+const APP_VERSION = 'v1.121';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -2352,6 +2352,7 @@ let routeGuideTab='all'; // 'all'|'unassigned'|1|2 — active tab in left panel
 const GUIDE_COLORS={
   1:{color:'#1e40af',bg:'#DBEAFE',label:'Murthy',light:'#93c5fd'},
   2:{color:'#b45309',bg:'#FEF3C7',label:'Divakar',light:'#fcd34d'},
+  3:{color:'#15803d',bg:'#DCFCE7',label:'Temp',light:'#86efac'},
 };
 const GUIDE_UNASSIGNED={color:'#6B7280',bg:'#F3F4F6',label:'Unassigned'};
 
@@ -2362,10 +2363,12 @@ function renderRouteGuideTabs(stops){
   const unassignedCount=(stops||[]).filter(r=>!routeGuide[r.id]).length;
   const g1count=(stops||[]).filter(r=>routeGuide[r.id]===1).length;
   const g2count=(stops||[]).filter(r=>routeGuide[r.id]===2).length;
+  const g3count=(stops||[]).filter(r=>routeGuide[r.id]===3).length;
   const tabs=[
     {key:'unassigned',label:'Unassigned',count:unassignedCount,color:'#6B7280',bg:'#F3F4F6'},
     {key:1,label:GUIDE_COLORS[1].label,count:g1count,color:GUIDE_COLORS[1].color,bg:GUIDE_COLORS[1].bg},
     {key:2,label:GUIDE_COLORS[2].label,count:g2count,color:GUIDE_COLORS[2].color,bg:GUIDE_COLORS[2].bg},
+    {key:3,label:GUIDE_COLORS[3].label,count:g3count,color:GUIDE_COLORS[3].color,bg:GUIDE_COLORS[3].bg},
   ];
   el.innerHTML=tabs.map(t=>{
     const active=routeGuideTab===t.key;
@@ -2557,14 +2560,15 @@ function getRouteStops(rid){
   return routeOrders[key].map(id=>all.find(r=>r.id===id)).filter(Boolean);
 }
 
-/* Returns stops in display order: Murthy → Divakar → Unassigned
+/* Returns stops in display order: Murthy → Divakar → Temp → Unassigned
    Preserves routeOrders (drag) order within each group */
 function getSortedRouteStops(dayNum){
   const all=getRouteStops(dayNum); // respects routeOrders
   const murthy =all.filter(r=>routeGuide[r.id]===1);
   const divakar=all.filter(r=>routeGuide[r.id]===2);
+  const temp   =all.filter(r=>routeGuide[r.id]===3);
   const unassigned=all.filter(r=>!routeGuide[r.id]);
-  return [...murthy,...divakar,...unassigned];
+  return [...murthy,...divakar,...temp,...unassigned];
 }
 
 // Legacy compat — used by showPage on init
@@ -2678,12 +2682,13 @@ function renderRouteStops(dayNum){
   const kanbanCols=[
     {id:'guide-col-1', guide:1,    label:GUIDE_COLORS[1].label, color:GUIDE_COLORS[1].color, bg:GUIDE_COLORS[1].bg,  stops:allStops.filter(r=>routeGuide[r.id]===1)},
     {id:'guide-col-2', guide:2,    label:GUIDE_COLORS[2].label, color:GUIDE_COLORS[2].color, bg:GUIDE_COLORS[2].bg,  stops:allStops.filter(r=>routeGuide[r.id]===2)},
+    {id:'guide-col-3', guide:3,    label:GUIDE_COLORS[3].label, color:GUIDE_COLORS[3].color, bg:GUIDE_COLORS[3].bg,  stops:allStops.filter(r=>routeGuide[r.id]===3)},
     {id:'guide-col-0', guide:null, label:'Unassigned',           color:'#6B7280',             bg:'#F3F4F6',           stops:allStops.filter(r=>!routeGuide[r.id])},
   ];
 
-  el.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;height:100%;overflow:hidden">${
+  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(${kanbanCols.length},1fr);height:100%;overflow:hidden">${
     kanbanCols.map((c,ci)=>`
-      <div style="display:flex;flex-direction:column;${ci<2?'border-right:1px solid var(--border);':''}overflow:hidden">
+      <div style="display:flex;flex-direction:column;${ci<kanbanCols.length-1?'border-right:1px solid var(--border);':''}overflow:hidden">
         <div style="padding:5px 8px;background:${c.bg};border-bottom:2px solid ${c.color};flex-shrink:0;display:flex;align-items:center;gap:5px">
           <span style="font-size:11px;font-weight:700;color:${c.color};font-family:var(--mono);letter-spacing:0.02em">${c.label}</span>
           <span style="font-size:9px;background:${c.color};color:#fff;padding:1px 5px;border-radius:8px;font-weight:600">${c.stops.length}</span>
@@ -2871,7 +2876,7 @@ function drawRouteMap(rid){
   const stops=getSortedRouteStops(rid);
 
   // Split stops by guide assignment
-  const guideGroups={1:[],2:[],0:[]};
+  const guideGroups={1:[],2:[],3:[],0:[]};
   stops.forEach((r,i)=>{ const g=routeGuide[r.id]||0; guideGroups[g].push({r,stopIdx:i}); });
 
   // Assign marker colors: guide 1=blue, guide 2=amber, unassigned=day color
@@ -2913,7 +2918,7 @@ function drawRouteMap(rid){
   });
 
   // Draw separate polyline per guide (+ one for unassigned)
-  [[1,'solid'],[2,'solid'],[0,'dash']].forEach(([gn,style])=>{
+  [[1,'solid'],[2,'solid'],[3,'solid'],[0,'dash']].forEach(([gn,style])=>{
     const gstops=guideGroups[gn].filter(({r})=>getCoords(r));
     if(gstops.length<2) return;
     const pts=gstops.map(({r})=>getCoords(r));
