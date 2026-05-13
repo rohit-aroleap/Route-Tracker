@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.122</title>
+<title>BLR Tracker · v1.123</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -243,6 +243,10 @@ tr:hover td{background:rgba(0,0,0,0.015)}
         <span id="sync-text">Initializing…</span>
       </div>
       <button onclick="exportBackupJson()" title="Download a JSON snapshot of the entire database" style="width:100%;margin-top:6px;font-size:10px;padding:5px;border-radius:var(--r);border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.7);cursor:pointer;font-family:var(--mono)">⬇ Download backup JSON</button>
+      <div id="ferra-sync-bar" style="margin-top:8px;padding:6px 8px;border-radius:var(--r);background:rgba(255,255,255,0.04);font-size:10px;font-family:var(--mono);color:rgba(255,255,255,0.55)">
+        <div id="ferra-sync-label">Ferra: waiting for first sync…</div>
+        <button onclick="handleFerraWorkerRefresh(this)" title="Force an out-of-cron sync of the Ferra subscription + habit data" style="width:100%;margin-top:5px;font-size:10px;padding:5px;border-radius:var(--r);border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.7);cursor:pointer;font-family:var(--mono)">↻ Refresh Ferra now</button>
+      </div>
     </div>
   </aside>
 
@@ -530,13 +534,25 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.122';
+const APP_VERSION = 'v1.123';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
 let _currentUser = null;       // { uid, email, displayName } — set on auth
 let _pendingWrites = 0;        // Firebase writes in flight
 let _trashBin = [];            // deleted rows with metadata, newest first
+
+/* ─── SHARED FERRA DATA (v1.123) ───────────────────────────────────
+   Lightweight consumer of the central ferra-sync Cloudflare worker's
+   output. The worker writes the upstream Ferra payload to two root
+   paths on this Firebase project on a 30-min cron; every dashboard
+   subscribes read-only. No API key, no fetch logic here.
+   We currently subscribe ONLY to the small slices the route planner
+   might use later — the 7 MB habit blob is intentionally NOT loaded. */
+let sharedFerraSubs = null;            // /ferraSubscriptions/v1   (~50 KB)
+let sharedFerraHabitMeta = null;       // /ferraHabitData/v1/_meta (tiny)
+let sharedFerraHabitSyncedAt = null;   // /ferraHabitData/v1/_syncedAt (ISO string)
+const FERRA_SYNC_WORKER = 'https://ferra-sync.rohitpatel-mailid297.workers.dev/';
 
 /* ─── ROW LOCKING ─── */
 let _locks = {};          // rowId(num) → {lockedBy, displayName, lockedAt}
@@ -913,6 +929,25 @@ function initFirebase(){
     db2.ref('.info/connected').on('value', snap => {
       setSyncStatus(snap.val() ? 'online' : 'offline');
     });
+
+    // ── Shared Ferra data (v1.123) ─────────────────────────────────────────
+    // Read-only consumer of the central ferra-sync worker's output.
+    // Subscribed to lightweight slices only; no UI surfacing yet — state is
+    // parked in window-level vars so subsequent commits can render it.
+    db2.ref('ferraSubscriptions/v1').on('value', snap => {
+      sharedFerraSubs = snap.val();
+      renderFerraSyncLabel();
+    }, err => { console.warn('ferraSubscriptions listener error:', err); });
+
+    db2.ref('ferraHabitData/v1/_meta').on('value', snap => {
+      sharedFerraHabitMeta = snap.val();
+      renderFerraSyncLabel();
+    }, err => { console.warn('ferraHabitData/_meta listener error:', err); });
+
+    db2.ref('ferraHabitData/v1/_syncedAt').on('value', snap => {
+      sharedFerraHabitSyncedAt = snap.val();
+      renderFerraSyncLabel();
+    }, err => { console.warn('ferraHabitData/_syncedAt listener error:', err); });
 
   }catch(e){
     console.warn('Firebase init failed — running offline only',e);
@@ -1410,6 +1445,72 @@ function resetToSeed(){
 }
 
 /* ─── MANUAL BACKUP EXPORT ─── */
+/* ─── SHARED FERRA HELPERS (v1.123) ───────────────────────────────
+   Phone normalisation MUST match the worker's so byPhone lookups hit.
+   Worker rule: strip non-digits → strip leading zeros → prefix '91'
+   if the result is exactly 10 digits (Indian numbers only). */
+function normalizePhone(p){
+  let n = String(p == null ? '' : p).replace(/\D/g, '').replace(/^0+/, '');
+  if(n.length === 10) n = '91' + n;
+  return n;
+}
+function getFerraTagFor(customer){
+  if(!sharedFerraSubs || !sharedFerraSubs.byPhone) return null;
+  const phone = customer && (customer.phone || customer.phoneNumber);
+  return sharedFerraSubs.byPhone[normalizePhone(phone)] || null;
+}
+
+/* ISO → "YYYY-MM-DD HH:MM IST".  Hand-rolled rather than using
+   toLocaleString so we don't depend on the browser's timezone. */
+function formatIstTime(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  if(isNaN(d.getTime())) return String(iso);
+  const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+  const Y = ist.getUTCFullYear();
+  const M = String(ist.getUTCMonth() + 1).padStart(2, '0');
+  const D = String(ist.getUTCDate()).padStart(2, '0');
+  const h = String(ist.getUTCHours()).padStart(2, '0');
+  const m = String(ist.getUTCMinutes()).padStart(2, '0');
+  return `${Y}-${M}-${D} ${h}:${m} IST`;
+}
+
+function renderFerraSyncLabel(){
+  const el = document.getElementById('ferra-sync-label');
+  if(!el) return;
+  const subTs = sharedFerraSubs && sharedFerraSubs.uploadedAt;
+  const habTs = sharedFerraHabitSyncedAt;
+  // Use whichever is fresher as the "last sync" line.
+  let latest = null;
+  if(subTs) latest = subTs;
+  if(habTs && (!latest || new Date(habTs).getTime() > new Date(latest).getTime())) latest = habTs;
+  if(!latest){ el.textContent = 'Ferra: waiting for first sync…'; return; }
+  const n = sharedFerraSubs && sharedFerraSubs.matched;
+  el.textContent = `Ferra: ${formatIstTime(latest)}${n?` · ${n} subs`:''}`;
+}
+
+/* POST the worker URL to force an out-of-cron sync. No API key
+   needed on the client — the worker holds its own. */
+async function handleFerraWorkerRefresh(btnEl){
+  const originalLabel = btnEl ? btnEl.textContent : '';
+  if(btnEl){ btnEl.disabled = true; btnEl.textContent = '⏳ Refreshing…'; }
+  try {
+    const resp = await fetch(FERRA_SYNC_WORKER, { method: 'POST' });
+    const data = await resp.json().catch(()=>({}));
+    if(resp.ok && data.ok){
+      const r0 = data.results && data.results[0];
+      const matched = r0 && r0.matched;
+      toast('Ferra refreshed' + (matched ? ` — ${matched} subs` : ''));
+    } else {
+      toast('Refresh failed — ' + (data.error || `HTTP ${resp.status}`));
+    }
+  } catch(e){
+    toast('Refresh failed — ' + (e.message || String(e)));
+  } finally {
+    if(btnEl){ btnEl.disabled = false; btnEl.textContent = originalLabel; }
+  }
+}
+
 function exportBackupJson(){
   // Live snapshot of the whole /v2 subtree from Firebase (preferred, authoritative)
   // Falls back to in-memory state if Firebase isn't connected.
