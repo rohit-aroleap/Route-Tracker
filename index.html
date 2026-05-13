@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.123</title>
+<title>BLR Tracker · v1.124</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -534,7 +534,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.123';
+const APP_VERSION = 'v1.124';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -937,6 +937,10 @@ function initFirebase(){
     db2.ref('ferraSubscriptions/v1').on('value', snap => {
       sharedFerraSubs = snap.val();
       renderFerraSyncLabel();
+      // Re-render the Edit Data sheet so the per-row tag badges refresh.
+      // renderSheet() has its own input-focused guard so this is safe to
+      // call frequently — it won't clobber a half-typed cell.
+      if(typeof renderSheet === 'function') renderSheet();
     }, err => { console.warn('ferraSubscriptions listener error:', err); });
 
     db2.ref('ferraHabitData/v1/_meta').on('value', snap => {
@@ -1458,6 +1462,33 @@ function getFerraTagFor(customer){
   if(!sharedFerraSubs || !sharedFerraSubs.byPhone) return null;
   const phone = customer && (customer.phone || customer.phoneNumber);
   return sharedFerraSubs.byPhone[normalizePhone(phone)] || null;
+}
+
+/* Color scheme for the 16 Ferra subscription tags. Grouped by funnel
+   stage: early-stage = amber/yellow, mid = blue/indigo, SA-touchpoints
+   = pink, success = green, return-flow = red, warehouse = purple. */
+const FERRA_TAG_COLOR = {
+  'Order Pending':           {bg:'#FEF3C7', fg:'#92400E'},
+  'Auto Pay Pending':        {bg:'#FEF3C7', fg:'#92400E'},
+  'Approval Pending':        {bg:'#FEF9C3', fg:'#854D0E'},
+  'Machine Assign Pending':  {bg:'#FEF9C3', fg:'#854D0E'},
+  'Installation Pending':    {bg:'#DBEAFE', fg:'#1E40AF'},
+  'Persona Call Pending':    {bg:'#E0E7FF', fg:'#3730A3'},
+  'Exercises Call Pending':  {bg:'#E0E7FF', fg:'#3730A3'},
+  'Hand Off Pending':        {bg:'#E0E7FF', fg:'#3730A3'},
+  'SA Reach Out Pending':    {bg:'#FCE7F3', fg:'#9D174D'},
+  'SA Follow Up':            {bg:'#FCE7F3', fg:'#9D174D'},
+  'All Steps Complete':      {bg:'#D1FAE5', fg:'#065F46'},
+  'All Done':                {bg:'#D1FAE5', fg:'#065F46'},
+  'Uninstallation Pending':  {bg:'#FFE4E6', fg:'#9F1239'},
+  'Pickup Pending':          {bg:'#FFE4E6', fg:'#9F1239'},
+  'Received in Warehouse':   {bg:'#F3E8FF', fg:'#6B21A8'},
+};
+function renderFerraTagBadge(customer){
+  const tag = getFerraTagFor(customer);
+  if(!tag) return '';
+  const c = FERRA_TAG_COLOR[tag] || {bg:'#F3F4F6', fg:'#374151'};
+  return `<div title="Ferra subscription step (live from worker)" style="font-size:9px;font-family:var(--mono);font-weight:600;color:${c.fg};background:${c.bg};padding:1px 6px;border-radius:4px;margin-top:3px;display:inline-block;line-height:1.4">${tag}</div>`;
 }
 
 /* ISO → "YYYY-MM-DD HH:MM IST".  Hand-rolled rather than using
@@ -3412,7 +3443,7 @@ function sheetRow(r){
   return `<tr class="sheet-data-row${dayLocked?' day-locked':''}" data-id="${r.id}" style="background:${dayLocked?'#FFFBEB':rowBg}">
     <td class="drag-handle" style="cursor:${dayLocked?'default':'grab'};color:var(--ink3);text-align:center;padding:4px 8px;user-select:none;font-size:14px">⠿</td>
     <td><input class="sheet-input" value="${escAttr(r.name)}" placeholder="Name"${dis} onchange="updateEntry(${r.id},'name',this.value)"/>${editBy?`<div style="font-size:8px;color:var(--ink3);font-family:var(--mono);padding:0 6px" title="${r._lastModifiedBy||''}">✎ ${editBy}</div>`:''}</td>
-    <td><input class="sheet-input" value="${escAttr(r.phone)}" placeholder="Phone" style="font-family:var(--mono)"${dis} onchange="updateEntry(${r.id},'phone',this.value)"/></td>
+    <td><input class="sheet-input" value="${escAttr(r.phone)}" placeholder="Phone" style="font-family:var(--mono)"${dis} onchange="updateEntry(${r.id},'phone',this.value)"/>${renderFerraTagBadge(r)}</td>
     <td><input class="sheet-input" value="${escAttr(r.area)}" placeholder="Area / locality"${dis} onchange="updateEntry(${r.id},'area',this.value)"/></td>
     <td><input class="sheet-input" value="${escAttr(r.pin)}" placeholder="560xxx" maxlength="6" style="font-family:var(--mono);width:80px"${dis} onchange="updateEntry(${r.id},'pin',this.value)"/></td>
     <td><input class="sheet-input" value="${r.lat&&r.lng?r.lat.toFixed(5)+','+r.lng.toFixed(5):''}" placeholder="Maps link / lat,lng" style="font-family:var(--mono);width:120px;font-size:10px"${dis} onchange="updateEntryLocation(${r.id},this.value)"/>${r.lat&&r.lng?`<span style="font-size:8px;color:#2E7D32">📍</span>`:''}</td>
