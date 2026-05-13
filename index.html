@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.121</title>
+<title>BLR Tracker · v1.122</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -519,19 +519,18 @@ tr:hover td{background:rgba(0,0,0,0.015)}
         { "rules": { ".read": "auth != null", ".write": "auth != null" } }
    ─────────────────────────────────────────────────────────────────────── */
 const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyDMaVnRPjK55-T95m9AS49Ju_bgR_p42ic",
-  authDomain:        "mapping-ferra-installation.firebaseapp.com",
-  databaseURL:       "https://mapping-ferra-installation-default-rtdb.firebaseio.com",
-  projectId:         "mapping-ferra-installation",
-  storageBucket:     "mapping-ferra-installation.firebasestorage.app",
-  messagingSenderId: "1037635127527",
-  appId:             "1:1037635127527:web:a56c96436da69244097a42",
-  measurementId:     "G-5LXTMV8YTM"
+  apiKey:            "AIzaSyC5mZAG98VAeDpp1IssYYQ2kcKeClyqIGc",
+  authDomain:        "motherofdashboard.firebaseapp.com",
+  databaseURL:       "https://motherofdashboard-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:         "motherofdashboard",
+  storageBucket:     "motherofdashboard.firebasestorage.app",
+  messagingSenderId: "1014194001329",
+  appId:             "1:1014194001329:web:fbda11db0be85994d2d990"
 };
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.121';
+const APP_VERSION = 'v1.122';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries

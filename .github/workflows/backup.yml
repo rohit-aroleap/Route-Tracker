@@ -52,13 +52,19 @@ jobs:
           creds.refresh(Request())
           token = creds.token
 
-          resp = requests.get(f'{db_url}/.json', params={'access_token': token}, timeout=60)
+          # Back up just /blr_tracker (this app's subtree). motherofdashboard
+          # hosts unrelated apps at root and we don't want those in this repo.
+          resp = requests.get(f'{db_url}/blr_tracker.json', params={'access_token': token}, timeout=60)
           resp.raise_for_status()
-          data = resp.json()
+          subtree = resp.json()
 
-          if data is None:
-              print('WARNING: Firebase returned null — database appears empty. Aborting to avoid overwriting good history.')
+          if subtree is None:
+              print('WARNING: Firebase returned null at /blr_tracker — appears empty. Aborting to avoid overwriting good history.')
               sys.exit(1)
+
+          # Wrap back under "blr_tracker" so backup file shape stays compatible
+          # with historical root-shaped backups ({"blr_tracker": {...}}).
+          data = {'blr_tracker': subtree}
 
           # IST timestamp for filename
           ist = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
