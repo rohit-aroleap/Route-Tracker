@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.124</title>
+<title>BLR Tracker · v1.125</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -534,7 +534,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.124';
+const APP_VERSION = 'v1.125';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -3676,6 +3676,16 @@ function addSheetRow(calDate){
   const SM = SHEET_MONTHS[monthIdx];
   const isApril = monthIdx === 0;
   if(isApril && isDayLocked(calDate)){ dayLockedToast(calDate); return; }
+  // ── Bug fix (v1.125): on macOS Safari/Chrome a button click does NOT
+  // steal focus from a previously-focused input. If a trainer was just
+  // typing in a cell and then clicked "+ Add row", renderSheet()'s
+  // focus-guard saw the input still focused, bailed out, and the new
+  // row stayed invisible — they'd click again, then again, then
+  // refresh and see all the silently-accumulated rows appear at once.
+  // Blurring the active cell first fires its onchange (so unsaved
+  // typing is persisted) and clears the guard so renderSheet runs.
+  const ae = document.activeElement;
+  if(ae && ae.blur && ae.closest && ae.closest('#sheet-wrap')) ae.blur();
   const planDay = isApril ? DAY_PLAN.find(dp=>parseInt(dp.date)===calDate) : null;
   const entry={id:allocId(),name:'',phone:'',area:'',pin:'',
     date: calDate + ' ' + SM.short,
