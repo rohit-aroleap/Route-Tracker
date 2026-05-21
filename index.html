@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.125</title>
+<title>BLR Tracker · v1.126</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -534,7 +534,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.125';
+const APP_VERSION = 'v1.126';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -3449,7 +3449,7 @@ function sheetRow(r){
     <td><input class="sheet-input" value="${r.lat&&r.lng?r.lat.toFixed(5)+','+r.lng.toFixed(5):''}" placeholder="Maps link / lat,lng" style="font-family:var(--mono);width:120px;font-size:10px"${dis} onchange="updateEntryLocation(${r.id},this.value)"/>${r.lat&&r.lng?`<span style="font-size:8px;color:#2E7D32">📍</span>`:''}</td>
     <td><select class="sheet-input"${dis} onchange="updateEntry(${r.id},'status',this.value)">${statusOpts}</select>${ts?`<div style="font-size:9px;font-family:var(--mono);font-weight:600;color:${ts.c};padding:1px 6px;white-space:nowrap">${ts.i} ${ts.l}${tsTime?' · '+tsTime:''}</div>`:''}</td>
     <td><input class="sheet-input" value="${escAttr(r.notes||'')}" placeholder="Notes…"${dis} onchange="updateEntry(${r.id},'notes',this.value)"/></td>
-    <td><button class="delete-btn" onclick="deleteRow(${r.id});renderSheet()">✕</button></td>
+    <td><button class="delete-btn" onclick="deleteSheetRow(${r.id})">✕</button></td>
   </tr>`;
 }
 
@@ -3668,6 +3668,16 @@ function updateEntryLocation(id,value){
     return;
   }
   toast('Could not parse location — paste a Google Maps link or lat,lng');
+}
+
+// Wrapper around deleteRow for the Edit Data sheet — blurs the focused
+// cell first so renderSheet's input-focus guard doesn't silently skip
+// the re-render (same root cause as the v1.125 add-row bug).
+function deleteSheetRow(id){
+  const ae = document.activeElement;
+  if(ae && ae.blur && ae.closest && ae.closest('#sheet-wrap')) ae.blur();
+  deleteRow(id);
+  renderSheet();
 }
 
 function addSheetRow(calDate){
