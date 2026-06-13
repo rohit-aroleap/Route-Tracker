@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.128</title>
+<title>BLR Tracker · v1.129</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -534,7 +534,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.128';
+const APP_VERSION = 'v1.129';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -627,78 +627,8 @@ function initSheetLocking(){
   });
 }
 
-/* ─── DAY-LEVEL DATA LOCK (admin-only, persistent) ─── */
-const ADMIN_EMAIL = 'rohit@aroleap.com';
-function isAdmin(){ return !!(_currentUser && _currentUser.email === ADMIN_EMAIL); }
-let _dayLocks = {}; // calDay(num) → { lockedBy, lockedAt }
-// Day-lock system was retired in v1.115. isDayLocked is hardcoded to
-// false so every guard (renderSheet, addSheetRow, drag-reorder,
-// updateEntry, deleteRow, tech.html stepper) becomes a no-op. The
-// lockDay/unlockDay functions are also neutered below. Existing
-// meta/dayLocks data in Firebase is left in place (inert), so nothing
-// is destroyed and the feature is recoverable if needed later.
-function isDayLocked(calDay){ return false; }
-// For the lock check we cannot use getEntryCalDate — it prefers r.day (which
-// maps through DAY_PLAN, covering only 11–17 Apr) and would collapse later-
-// week rows back onto their week-1 slot. A row with r.date="26 Apr" but
-// r.day=6 would appear locked when 16 Apr is locked. Use r.date first,
-// r.day as fallback only when no date string exists.
-function rowCalDate(row){
-  if(!row) return null;
-  if(row.date){
-    const s = String(row.date);
-    // 1) "DD Apr", "DDth April", "11th April" — number immediately before Apr/April
-    let m = s.match(/(\d{1,2})\s*(?:st|nd|rd|th)?\s*(?:Apr|April)\b/i);
-    if(m){ const n = parseInt(m[1]); if(n>=1 && n<=31) return n; }
-    // 2) "Apr DD", "April 26"
-    m = s.match(/(?:Apr|April)\s+(\d{1,2})\b/i);
-    if(m){ const n = parseInt(m[1]); if(n>=1 && n<=31) return n; }
-    // 3) ISO-ish ("2026-04-26") — take the last 1..31 number in the string
-    const nums = s.match(/\d+/g) || [];
-    for(let i=nums.length-1; i>=0; i--){
-      const n = parseInt(nums[i]);
-      if(n>=1 && n<=31) return n;
-    }
-  }
-  if(row.day>=1 && row.day<=7){
-    const dp = DAY_PLAN.find(d=>d.day===row.day);
-    if(dp){ const m = String(dp.date).match(/\d+/); if(m) return parseInt(m[0]); }
-  }
-  return null;
-}
-function isRowDayLocked(row){
-  if(!row) return false;
-  return isDayLocked(rowCalDate(row));
-}
-function lockDay(calDay){
-  // Retired in v1.115 — feature removed.
-  toast('Day-lock feature has been removed.');
-  return;
-}
-function unlockDay(calDay){
-  // Retired in v1.115 — feature removed. Kept as a no-op so any
-  // pending UI bindings or stale tabs can't blow up.
-  return;
-}
-function dayLockedToast(calDay){ /* retired — locks removed */ }
-
-// Debug helper: run `debugLocks()` in the browser console to see which days
-// are locked and which rows the code thinks are locked (with the computed
-// calendar day, r.date and r.day values).
-window.debugLocks = function(){
-  console.log('== Day locks ==');
-  console.log('_dayLocks =', _dayLocks);
-  console.log('Locked day keys:', Object.keys(_dayLocks||{}));
-  console.log('== Rows flagged as locked ==');
-  let count = 0;
-  (db||[]).forEach(r=>{
-    if(isRowDayLocked(r)){
-      count++;
-      console.log(`LOCKED id=${r.id} name="${r.name||''}" r.date="${r.date||''}" r.day=${r.day} → rowCalDate=${rowCalDate(r)} (getEntryCalDate=${getEntryCalDate(r)})`);
-    }
-  });
-  console.log('Total locked rows:', count);
-};
+/* Day-level data lock — retired in v1.115; scaffolding removed in v1.129.
+   Inert /meta/dayLocks data is left in Firebase (recoverable if ever revived). */
 
 function updateSyncBadge(){
   const dot=document.getElementById('sync-dot');
@@ -824,15 +754,6 @@ function initFirebase(){
       updateLockIndicators();
     });
 
-    // ── Day-level data locks listener ─────────────────────────────────────
-    // Persistent, admin-only locks that freeze an entire calendar day's
-    // rows across every browser. Stored at meta/dayLocks/{calDay}.
-    _fbRef.child('meta/dayLocks').on('value', snap => {
-      _dayLocks = snap.val() || {};
-      // Redraw the active page so lock visuals and button states refresh.
-      if(!window._sheetDragging) renderActivePage();
-    });
-
     // ── One-time snapshot: load current Firebase state on connect ─────────
     // Runs AFTER listeners are attached so we don't miss any writes
     rowsRef.once('value').then(snap => {
@@ -856,21 +777,12 @@ function initFirebase(){
         nextId = Math.max(nextId, ...fbRows.map(r=>r.id+1), 1);
         // Push any historical entries not yet in Firebase — but ONLY if not intentionally deleted
         const fbIdSet = new Set(fbRows.map(r=>r.id));
-        // Read dayLocks explicitly so we don't race the listener: seeding must
-        // NEVER run before we know which days are frozen, or a code push could
-        // re-seed over locked rows.
-        Promise.all([
-          _fbRef.child('meta/deletedIds').once('value').catch(()=>null),
-          _fbRef.child('meta/dayLocks').once('value').catch(()=>null)
-        ]).then(([delSnap, lockSnap])=>{
+        _fbRef.child('meta/deletedIds').once('value').catch(()=>null).then(delSnap=>{
           if(delSnap){
             const remoteDeleted = delSnap.val()||{};
             Object.keys(remoteDeleted).forEach(k=>{ deletedIds[Number(k)]=true; });
           }
-          if(lockSnap){ _dayLocks = lockSnap.val() || _dayLocks || {}; }
           HISTORICAL_ENTRIES.forEach(r=>{
-            // Skip seeding if the day is locked — prevents code-push re-seeds from overwriting locked days
-            if(isRowDayLocked(r)) return;
             if(!fbIdSet.has(r.id) && !deletedIds[r.id]) rowsRef.child(String(r.id)).set(r);
           });
         });
@@ -989,7 +901,6 @@ function doLogout(){
 
 function pushRowToFirebase(row){
   if(!_isFirebaseReady || !_fbRef) return;
-  if(isRowDayLocked(row)) return;  // final backstop: never write to a locked day
   _ignoreRowIds.add(row.id);
   const stamped=Object.assign({},row,{
     _lastModifiedBy: _currentUser?_currentUser.email:'unknown',
@@ -1003,7 +914,6 @@ function pushRowToFirebase(row){
 
 function deleteRowFromFirebase(id, rowData){
   if(!_isFirebaseReady || !_fbRef) return;
-  if(isRowDayLocked(rowData)) return;  // final backstop: never delete from a locked day
   _ignoreRowIds.add(id);
   _writeStarted();
   _fbRef.child('rows').child(String(id)).remove()
@@ -1032,8 +942,8 @@ function pushMetaToFirebase(){
   if(!_fbMetaReceived) return;
   _writeStarted();
   // IMPORTANT: use .update() not .set() — .set() replaces the entire meta
-  // node and would wipe out sub-keys we don't list here (notably dayLocks,
-  // which is admin-owned and must survive every edit from every client).
+  // node and would wipe out sub-keys we don't list here (e.g. legacy
+  // dayLocks data, which the worker / future features may use).
   _fbRef.child('meta').update({
     nextId, sheetOrders, routeOrders, routeStopTimes, routeTimeConfirmed, routeAvailSlots, routeGuide,
     deletedIds,
@@ -1949,7 +1859,6 @@ const _pendingDeletes=[]; // queue — supports rapid successive deletions
 function deleteRow(id){
   const row=db.find(r=>r.id===id);
   if(!row) return;
-  if(isRowDayLocked(row)){ dayLockedToast(rowCalDate(row)); return; }
   // Remove from UI immediately
   db=db.filter(r=>r.id!==id);
   _dirtyRows.delete(id);
@@ -2018,7 +1927,6 @@ function renderTrashList(){
 function restoreFromTrash(id){
   const item=_trashBin.find(r=>r.id===id);
   if(!item) return;
-  if(isRowDayLocked(item)){ dayLockedToast(rowCalDate(item)); return; }
   // Clean trash metadata before restoring
   const restored=Object.assign({},item);
   delete restored._deletedBy;
@@ -2123,11 +2031,6 @@ function addInstallation(){
     : (di?di.dateLabel:'');
   const entry={id:allocId(),name,phone,area,pin,
     date:dateDisplay,day:dayNum,status,zone,notes};
-  // Determine calendar day from dateVal/dateDisplay, infer via planDay.date if needed
-  let _entryCalDay=null;
-  if(dateVal){ const _d=new Date(dateVal); if(!isNaN(_d)) _entryCalDay=_d.getDate(); }
-  if(_entryCalDay==null && dayNum){ const _dp=DAY_PLAN.find(dp=>dp.day===dayNum); if(_dp) _entryCalDay=parseInt(_dp.date); }
-  if(_entryCalDay!=null && isDayLocked(_entryCalDay)){ dayLockedToast(_entryCalDay); return; }
   // Parse Google Maps location if provided
   const loc=parseLocation(locInput);
   if(loc){ entry.lat=loc.lat; entry.lng=loc.lng; if(locInput.includes('google')||locInput.includes('goo.gl')||locInput.includes('maps.app')) entry.locationUrl=locInput; }
@@ -2161,7 +2064,7 @@ function bulkImport(){
   const raw=document.getElementById('bulk-input').value.trim();
   if(!raw){toast('Nothing to import');return;}
   const lines=raw.split('\n').filter(l=>l.trim());
-  let count=0, skipped=0;
+  let count=0;
   lines.forEach(line=>{
     const parts=line.split(/\t|,/).map(s=>s.trim());
     if(parts.length<2) return;
@@ -2170,15 +2073,13 @@ function bulkImport(){
     const zone=zoneName(pin||'')||'';
     const entry={id:allocId(),name:name||'',phone:phone||'',area:area||'',
       pin:pin||'',date:date||'',day:d,status:status||'paid',zone};
-    const _cd=getEntryCalDate(entry);
-    if(_cd!=null && isDayLocked(_cd)){ skipped++; return; }
     db.unshift(entry);
     _dirtyRows.add(entry.id);
     count++;
   });
   updateStats();
   document.getElementById('bulk-input').value='';
-  document.getElementById('bulk-hint').textContent=`Imported ${count} row${count!==1?'s':''}`+(skipped?` · ${skipped} skipped (locked day)`:'');
+  document.getElementById('bulk-hint').textContent=`Imported ${count} row${count!==1?'s':''}`;
   setTimeout(()=>document.getElementById('bulk-hint').textContent='',3000);
   if(count) showPage('log');
 }
@@ -2517,8 +2418,6 @@ function setRouteGuideTab(key){
 }
 
 function setStopGuide(entryId, guide, dayNum){
-  const _row=db.find(r=>r.id===entryId);
-  if(_row && isRowDayLocked(_row)){ dayLockedToast(rowCalDate(_row)); return; }
   if(routeGuide[entryId]===guide) delete routeGuide[entryId]; // toggle off
   else routeGuide[entryId]=guide;
   renderRouteView(); scheduleSave();
@@ -2546,8 +2445,6 @@ let routeAvailSlots={}; // entryId -> string[] of available times e.g. ["09:00",
 //   unselected  →  available (light blue)  →  confirmed (solid red)  →  unselected
 // Only one confirmed per stop at a time; multiple available allowed.
 function setStopTimePill(id,time24,dayNum){
-  const _row=db.find(r=>r.id===id);
-  if(_row && isRowDayLocked(_row)){ dayLockedToast(rowCalDate(_row)); return; }
   if(!routeAvailSlots[id]) routeAvailSlots[id]=[];
   const avail=routeAvailSlots[id];
   const isConfirmed=routeStopTimes[id]===time24;
@@ -2844,12 +2741,6 @@ function renderRouteStops(dayNum){
       ghostClass:'route-drag-ghost',
       onAdd:function(evt){
         const id=parseInt(evt.item.dataset.id);
-        const _row=db.find(r=>r.id===id);
-        if(_row && isRowDayLocked(_row)){
-          dayLockedToast(rowCalDate(_row));
-          setTimeout(()=>renderRouteView(),50);
-          return;
-        }
         if(c.guide) routeGuide[id]=c.guide; else delete routeGuide[id];
         _dirtyRows.add(id);
         scheduleSave();
@@ -2859,23 +2750,15 @@ function renderRouteStops(dayNum){
         // Persist within-column reorder and update routeOrders
         // Read the DOM order per column (Murthy first, then Divakar, then Unassigned)
         const newOrder=[];
-        let blocked=false;
         kanbanCols.forEach(col=>{
           const el=document.getElementById(col.id);
           if(!el) return;
           const ids=[...el.querySelectorAll('.route-stop')].map(e=>parseInt(e.dataset.id));
           ids.forEach(id=>{
-            const _row=db.find(r=>r.id===id);
-            if(_row && isRowDayLocked(_row)){ blocked=true; return; }
             if(col.guide) routeGuide[id]=col.guide; else delete routeGuide[id];
           });
           newOrder.push(...ids);
         });
-        if(blocked){
-          dayLockedToast(null);
-          setTimeout(()=>renderRouteView(), 50);
-          return;
-        }
         routeOrders[_routeOrderKey(dayNum)]=newOrder;
         scheduleSave();
         // Defer re-render to avoid issues with Sortable being destroyed mid-callback
@@ -3438,10 +3321,9 @@ function sheetRow(r){
   const tsTime=tsLog?new Date(tsLog.at).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit',hour12:true}):'';
   const isMaint=['reinstallation','maintenance','reinstall_done','maint_done','uninstallation','uninstall_done'].includes(nStatus);
   const rowBg=isMaint?'#F1F5F9':'#FFFFFF';
-  const dayLocked=isRowDayLocked(r);
-  const dis=dayLocked?' disabled':'';
-  return `<tr class="sheet-data-row${dayLocked?' day-locked':''}" data-id="${r.id}" style="background:${dayLocked?'#FFFBEB':rowBg}">
-    <td class="drag-handle" style="cursor:${dayLocked?'default':'grab'};color:var(--ink3);text-align:center;padding:4px 8px;user-select:none;font-size:14px">⠿</td>
+  const dis='';
+  return `<tr class="sheet-data-row" data-id="${r.id}" style="background:${rowBg}">
+    <td class="drag-handle" style="cursor:grab;color:var(--ink3);text-align:center;padding:4px 8px;user-select:none;font-size:14px">⠿</td>
     <td><input class="sheet-input" value="${escAttr(r.name)}" placeholder="Name"${dis} onchange="updateEntry(${r.id},'name',this.value)"/>${editBy?`<div style="font-size:8px;color:var(--ink3);font-family:var(--mono);padding:0 6px" title="${r._lastModifiedBy||''}">✎ ${editBy}</div>`:''}</td>
     <td><input class="sheet-input" value="${escAttr(r.phone)}" placeholder="Phone" style="font-family:var(--mono)"${dis} onchange="updateEntry(${r.id},'phone',this.value)"/>${renderFerraTagBadge(r)}</td>
     <td><input class="sheet-input" value="${escAttr(r.area)}" placeholder="Area / locality"${dis} onchange="updateEntry(${r.id},'area',this.value)"/></td>
@@ -3508,19 +3390,11 @@ function renderSheet(){
     const dowLabel=DOW_LABELS[dowIdx];
 
     const headerBg = '#EEF5EE';
-
-    // Day locks are still keyed by bare day number, so they only apply when
-    // viewing April. Other months show as unlocked and the lock button is
-    // hidden — full per-month locking is a follow-up.
-    const dayLocked = isApril && isDayLocked(calDay);
-    const lockInfo = isApril ? (_dayLocks[calDay] || null) : null;
-    const lockedAtText = (lockInfo && lockInfo.lockedAt) ? (()=>{try{const d=new Date(lockInfo.lockedAt);return d.toLocaleDateString('en-IN',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit'});}catch(e){return '';}})() : '';
-    const lockedByName = lockInfo ? (String(lockInfo.lockedBy||'').split('@')[0]) : '';
     html+=`<tbody class="sheet-group" data-calday="${calDay}" data-month="${monthIdx}">`;
-    html+=`<tr class="sheet-day-header${dayLocked?' locked':''}"><td colspan="8" style="background:${dayLocked?'#FEF3C7':headerBg};padding:6px 14px;border-top:1px solid ${dayLocked?'#FCD34D':'#E0E0E0'};">
-      <span style="font-family:var(--mono);font-size:11px;font-weight:${planDay?'600':'400'};color:${dayLocked?'#92400E':'#444'};text-transform:uppercase;letter-spacing:0.07em">${dayLocked?'🔒 ':''}${calDay} ${monthShort} (${dowLabel})</span>
-      ${dayLocked?'':`<button onclick="addSheetRow(${calDay})" style="margin-left:10px;font-size:11px;padding:1px 8px;border-radius:4px;border:1px solid #ccc;background:transparent;color:#888;cursor:pointer;font-family:var(--sans)">+ Add row</button>`}
-      ${rows.length?`<span style="margin-left:8px;font-size:11px;color:${dayLocked?'#92400E':'#888'};">${rows.length} entr${rows.length===1?'y':'ies'}</span>`:''}
+    html+=`<tr class="sheet-day-header"><td colspan="8" style="background:${headerBg};padding:6px 14px;border-top:1px solid #E0E0E0;">
+      <span style="font-family:var(--mono);font-size:11px;font-weight:${planDay?'600':'400'};color:#444;text-transform:uppercase;letter-spacing:0.07em">${calDay} ${monthShort} (${dowLabel})</span>
+      <button onclick="addSheetRow(${calDay})" style="margin-left:10px;font-size:11px;padding:1px 8px;border-radius:4px;border:1px solid #ccc;background:transparent;color:#888;cursor:pointer;font-family:var(--sans)">+ Add row</button>
+      ${rows.length?`<span style="margin-left:8px;font-size:11px;color:#888;">${rows.length} entr${rows.length===1?'y':'ies'}</span>`:''}
     </td></tr>`;
     rows.forEach(r=>{ html+=sheetRow(r); });
     html+=`</tbody>`;
@@ -3592,13 +3466,6 @@ function initSheetDrag(){
         const SM = SHEET_MONTHS[monthIdx];
         const isApril = monthIdx === 0;
 
-        // Day-lock guard (April only — locks aren't scoped per-month yet)
-        if(isApril && (isDayLocked(oldCalDay) || isDayLocked(newCalDay))){
-          dayLockedToast(isDayLocked(newCalDay)?newCalDay:oldCalDay);
-          renderSheet();
-          return;
-        }
-
         // Always snapshot current DOM order for BOTH affected sections
         // before any re-render (preserves manual ordering)
         [evt.from, evt.to].forEach(tbody=>{
@@ -3633,7 +3500,6 @@ function initSheetDrag(){
 function updateEntry(id,field,value){
   const row=db.find(r=>r.id===id);
   if(!row) return;
-  if(isRowDayLocked(row)){ dayLockedToast(rowCalDate(row)); renderSheet(); return; }
   if(field==='day') row.day=value?parseInt(value)||null:null;
   else row[field]=value;
   if(field==='pin') row.zone=zoneName(value)||row.zone||'';
@@ -3645,7 +3511,6 @@ function updateEntry(id,field,value){
 function updateEntryLocation(id,value){
   const row=db.find(r=>r.id===id);
   if(!row) return;
-  if(isRowDayLocked(row)){ dayLockedToast(rowCalDate(row)); renderSheet(); return; }
   if(!value.trim()){ delete row.lat; delete row.lng; delete row.locationUrl; _dirtyRows.add(id); scheduleSave(); renderSheet(); return; }
   // Try direct parse first
   const loc=parseLocation(value);
@@ -3681,11 +3546,9 @@ function deleteSheetRow(id){
 }
 
 function addSheetRow(calDate){
-  // Day-lock applies to April only (current scope of the lock storage).
   const monthIdx = (typeof _sheetMonthIdx === 'number') ? _sheetMonthIdx : 0;
   const SM = SHEET_MONTHS[monthIdx];
   const isApril = monthIdx === 0;
-  if(isApril && isDayLocked(calDate)){ dayLockedToast(calDate); return; }
   // ── Bug fix (v1.125): on macOS Safari/Chrome a button click does NOT
   // steal focus from a previously-focused input. If a trainer was just
   // typing in a cell and then clicked "+ Add row", renderSheet()'s
@@ -3931,7 +3794,6 @@ select.sheet-input{cursor:pointer}
 #sheet-table td{padding:3px 6px;vertical-align:middle}
 #sheet-table thead th{position:sticky;top:0;z-index:2;background:var(--surface2)}
 /* Day-level data lock visuals */
-.sheet-day-header.locked td{background:#FEF3C7!important;border-top:1px solid #FCD34D!important}
 .sheet-data-row.day-locked{background:#FFFBEB!important}
 .sheet-data-row.day-locked .sheet-input{background:transparent;color:#78350F;cursor:not-allowed;opacity:0.65}
 .sheet-data-row.day-locked .sheet-input:focus{border-bottom-color:transparent;background:transparent}

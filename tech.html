@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<title>Tech View · BLR Tracker · v1.128</title>
+<title>Tech View · BLR Tracker · v1.129</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -109,7 +109,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14p
 .step-row.checked .step-dot{background:#10B981;border-color:#10B981}
 .step-row.checked .step-dot::after{content:'✓'}
 .step-row.current-checked{box-shadow:0 0 0 2px #10B981 inset}
-.step-row.disabled,.step-row.locked-disabled{opacity:0.55;cursor:not-allowed}
+.step-row.disabled{opacity:0.55;cursor:not-allowed}
 .step-label{flex:1;font-size:14px;color:#111;font-weight:500}
 .step-row.checked .step-label{color:#065F46}
 .step-hint{font-size:10px;color:var(--ink3);font-family:var(--mono);text-transform:uppercase;letter-spacing:0.04em}
@@ -365,23 +365,6 @@ let routeGuide = {};
 let routeStopTimes = {};
 let routeOrders = {};
 let _fbRef = null;
-let dayLocks = {};
-// Day-lock retired in v1.115 — always false so all guards no-op.
-function isDayLocked(cd){ return false; }
-// Prefer r.date over r.day for lock checks — see index.html rowCalDate() comment.
-function rowCalDate(row){
-  if(!row) return null;
-  if(row.date){
-    const m = String(row.date).match(/\d+/);
-    if(m){ const n = parseInt(m[0]); if(n>=1 && n<=31) return n; }
-  }
-  if(row.day>=1 && row.day<=7){
-    const dp = DAY_PLAN.find(d=>d.day===row.day);
-    if(dp){ const m = String(dp.date).match(/\d+/); if(m) return parseInt(m[0]); }
-  }
-  return null;
-}
-function isRowDayLocked(r){ return r && isDayLocked(rowCalDate(r)); }
 let guideNum, calDay, monthIdx, routeKey, guideName, guideColor, dayLabel;
 
 /* ─── URL PARAMS ─── */
@@ -616,12 +599,6 @@ function setupListeners(db2){
     renderStops(); saveToCache();
   });
 
-  // Day-level data locks listener (admin-set locks on calendar days)
-  _fbRef.child('meta/dayLocks').on('value', snap=>{
-    dayLocks = snap.val() || {};
-    renderStops();
-  });
-
   // Connection status + offline banner
   db2.ref('.info/connected').on('value', snap=>{
     const dot=document.getElementById('sync-dot');
@@ -672,12 +649,8 @@ function renderStops(){
   const list=document.getElementById('stop-list');
   const summary=document.getElementById('summary');
 
-  const dayLockedBanner = isDayLocked(calDay)
-    ? `<div style="margin:10px 14px;padding:10px 12px;border-radius:8px;background:#FEF3C7;border:1px solid #FCD34D;color:#92400E;font-size:12px;font-family:var(--sans);text-align:center">🔒 Day locked by admin — read-only. Contact office for changes.</div>`
-    : '';
-
   if(!stops.length){
-    list.innerHTML=dayLockedBanner+'<div class="empty-state"><div class="icon">📋</div><h2>No stops assigned</h2><p>No installations assigned to '+guideName+' for '+dayLabel+'</p></div>';
+    list.innerHTML='<div class="empty-state"><div class="icon">📋</div><h2>No stops assigned</h2><p>No installations assigned to '+guideName+' for '+dayLabel+'</p></div>';
     summary.innerHTML='';
     return;
   }
@@ -697,7 +670,7 @@ function renderStops(){
     ${cancelled?`<div class="summary-stat"><div class="val" style="color:#B71C1C">${cancelled}</div><div class="lbl">Skip</div></div>`:''}
   </div>`;
 
-  list.innerHTML=dayLockedBanner+stops.map((r,i)=>renderCard(r,i+1)).join('');
+  list.innerHTML=stops.map((r,i)=>renderCard(r,i+1)).join('');
 }
 
 function renderCard(r, num){
@@ -746,11 +719,10 @@ function renderCard(r, num){
   // Advancing: tap the row at currentStep+1. Retreating: tap the topmost
   // checked row (currentStep). Lower rows / future rows reject with a toast.
   // All taps route through updateTechStatus() so v1.111 guards still apply.
-  const rowLocked = isRowDayLocked(r);
   const fromTs = ts || 'not_started';
   let buttonsHtml = '';
   if(stepIndex(ts) !== -1){
-    buttonsHtml = renderStepper(r, fromTs, rowLocked);
+    buttonsHtml = renderStepper(r, fromTs);
   }
 
   return `<div class="${cardClass}">
@@ -774,10 +746,9 @@ function renderCard(r, num){
 }
 
 /* ─── STEPPER RENDER + TAP WRAPPERS (v1.112) ───────────────────── */
-function renderStepper(r, fromTs, rowLocked){
+function renderStepper(r, fromTs){
   const curIdx = stepIndex(r.techStatus || 'not_started');
-  const lockAttr = rowLocked ? ' locked-disabled' : '';
-  const expanded = !rowLocked && curIdx === 3 && _expandingStep4[r.id];
+  const expanded = curIdx === 3 && _expandingStep4[r.id];
   let html = '<div class="stepper">';
   for(let n = 1; n <= 4; n++){
     const isChecked = n <= curIdx;
@@ -791,25 +762,14 @@ function renderStepper(r, fromTs, rowLocked){
     }
     const classes = 'step-row' +
       (isChecked ? ' checked' : '') +
-      (isCurrent ? ' current-checked' : '') +
-      lockAttr;
+      (isCurrent ? ' current-checked' : '');
     // Click dispatch — the handler figures out advance vs retreat vs reject.
-    let onclick;
-    if(rowLocked){
-      onclick = `toast('🔒 Day locked by admin — contact office')`;
-    } else if(isCurrent){
-      onclick = `retreatStep(${r.id},'${r.techStatus||'not_started'}')`;
-    } else if(n === 4 && isNext){
-      onclick = `advanceStep(${r.id},4,'${fromTs}')`;  // reveals variants
-    } else {
-      onclick = `advanceStep(${r.id},${n},'${fromTs}')`;
-    }
+    const onclick = isCurrent
+      ? `retreatStep(${r.id},'${r.techStatus||'not_started'}')`
+      : `advanceStep(${r.id},${n},'${fromTs}')`;
     let hint = '';
-    if(!rowLocked){
-      if(isCurrent && n < 4) hint = '<span class="step-hint">tap to undo</span>';
-      else if(isCurrent && n === 4) hint = '<span class="step-hint">tap to undo</span>';
-      else if(isNext) hint = '<span class="step-hint">tap next</span>';
-    }
+    if(isCurrent) hint = '<span class="step-hint">tap to undo</span>';
+    else if(isNext) hint = '<span class="step-hint">tap next</span>';
     html += `<div class="${classes}" onclick="${onclick}">
       <div class="step-dot">${!isChecked ? n : ''}</div>
       <div class="step-label">${label}</div>
@@ -828,17 +788,10 @@ function renderStepper(r, fromTs, rowLocked){
   html += '</div>';
   // Cancel / Reschedule row — visible once step 3 is ticked and not yet terminal.
   if(curIdx >= 3 && curIdx < 4){
-    if(rowLocked){
-      html += `<div class="status-btn-row">
-        <button class="status-btn status-btn-danger" disabled style="opacity:0.45;cursor:not-allowed;pointer-events:none">❌ Cancel</button>
-        <button class="status-btn status-btn-warn" disabled style="opacity:0.45;cursor:not-allowed;pointer-events:none">📅 Reschedule</button>
-      </div>`;
-    } else {
-      html += `<div class="status-btn-row">
-        <button class="status-btn status-btn-danger" onclick="updateTechStatus(${r.id},'cancelled','${fromTs}')">❌ Cancel</button>
-        <button class="status-btn status-btn-warn"   onclick="updateTechStatus(${r.id},'rescheduled','${fromTs}')">📅 Reschedule</button>
-      </div>`;
-    }
+    html += `<div class="status-btn-row">
+      <button class="status-btn status-btn-danger" onclick="updateTechStatus(${r.id},'cancelled','${fromTs}')">❌ Cancel</button>
+      <button class="status-btn status-btn-warn"   onclick="updateTechStatus(${r.id},'rescheduled','${fromTs}')">📅 Reschedule</button>
+    </div>`;
   }
   return html;
 }
@@ -846,7 +799,6 @@ function renderStepper(r, fromTs, rowLocked){
 function advanceStep(id, stepN, fromTs){
   const row = db.find(x => x.id === id);
   if(!row) return;
-  if(isRowDayLocked(row)){ toast('🔒 Day locked by admin — contact office'); return; }
   const curIdx = stepIndex(row.techStatus || 'not_started');
   if(stepN !== curIdx + 1){
     toast(`Tap step ${curIdx + 1} first`);
@@ -865,7 +817,6 @@ function advanceStep(id, stepN, fromTs){
 function retreatStep(id, fromTs){
   const row = db.find(x => x.id === id);
   if(!row) return;
-  if(isRowDayLocked(row)){ toast('🔒 Day locked by admin — contact office'); return; }
   // If we're retreating from the expanded step-4 picker (step 3 checked,
   // variants showing), just collapse the picker without a write.
   if(stepIndex(row.techStatus || 'not_started') === 3 && _expandingStep4[id]){
@@ -893,7 +844,6 @@ function updateTechStatus(id, newStatus, expectedFromStatus){
   if(_writingIds.has(id)) return; // write in progress for this row — ignore tap
   const row=db.find(r=>r.id===id);
   if(!row) return;
-  if(isRowDayLocked(row)){ toast('🔒 Day locked by admin — contact office'); return; }
 
   // ─── Tap-through guard ─────────────────────────────────────────────────
   // Every action button is rendered with the status it was "going from".
