@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<title>Tech View · BLR Tracker · v1.122</title>
+<title>Tech View · BLR Tracker · v1.127</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -33,6 +33,24 @@ body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14p
 .screen-center p{color:var(--ink2);font-size:13px;max-width:300px}
 .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:16px}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* Login screen (v1.127) */
+#login-screen{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;background:var(--ink);color:#fff}
+#login-screen .login-box{width:100%;max-width:340px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:28px 24px}
+#login-screen .login-title{font-family:var(--serif);font-weight:300;font-size:26px;text-align:center;margin-bottom:6px}
+#login-screen .login-title span{color:var(--accent);font-style:italic}
+#login-screen .login-sub{font-family:var(--mono);font-size:11px;color:rgba(255,255,255,0.5);text-align:center;margin-bottom:22px;letter-spacing:0.04em}
+#login-screen label{display:block;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:rgba(255,255,255,0.55);margin-bottom:5px}
+#login-screen input{width:100%;padding:11px 14px;border-radius:8px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:#fff;font-size:15px;font-family:var(--sans);outline:none;-webkit-appearance:none;box-sizing:border-box}
+#login-screen input:focus{border-color:var(--accent);background:rgba(255,255,255,0.1)}
+#login-screen .form-group{margin-bottom:14px}
+#login-screen .login-btn{width:100%;margin-top:6px;padding:13px;border:none;border-radius:8px;background:var(--accent);color:#fff;font-size:15px;font-weight:600;font-family:var(--sans);cursor:pointer;-webkit-appearance:none}
+#login-screen .login-btn:active{opacity:0.85}
+#login-screen .login-hint{text-align:center;margin-top:14px;font-size:11px;color:rgba(255,255,255,0.4);font-family:var(--mono)}
+#login-screen .login-error{display:none;margin-bottom:14px;padding:9px 12px;border-radius:6px;background:rgba(220,80,80,0.15);border:1px solid rgba(220,80,80,0.4);color:#FCA5A5;font-size:13px;text-align:center}
+#login-screen .login-error.show{display:block}
+.header-signout{background:transparent;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.7);padding:3px 8px;border-radius:5px;font-size:10px;font-family:var(--mono);cursor:pointer;-webkit-appearance:none;margin-top:3px}
+.header-signout:active{background:rgba(255,255,255,0.1)}
 
 /* Header */
 .header{position:sticky;top:0;z-index:100;background:var(--ink);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,0.2)}
@@ -145,6 +163,25 @@ body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14p
   <button id="retry-btn" onclick="location.reload()" style="display:none;margin-top:16px;padding:10px 28px;border:none;border-radius:10px;background:#2563eb;color:#fff;font-size:15px;font-weight:600;cursor:pointer">🔄 Retry</button>
 </div>
 
+<!-- Login screen (v1.127) -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-title">Blr<span>Install</span></div>
+    <div class="login-sub">TECHNICIAN SIGN IN</div>
+    <div id="login-error" class="login-error"></div>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="you@ferra.club" autocomplete="email" autocapitalize="none" autocorrect="off"/>
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="login-pass" placeholder="Your password" autocomplete="current-password"/>
+    </div>
+    <button class="login-btn" onclick="doLogin()">Sign In</button>
+    <div class="login-hint">Contact admin if you need access</div>
+  </div>
+</div>
+
 <!-- Main app -->
 <div id="app" style="display:none">
   <div class="header">
@@ -154,6 +191,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14p
     <div class="header-meta">
       <div class="header-guide" id="h-guide"></div>
       <div class="header-date" id="h-date"></div>
+      <button class="header-signout" onclick="doLogout()" title="Sign out">⏻ Sign out</button>
     </div>
     <div class="sync-dot" id="sync-dot" style="background:rgba(255,200,50,0.9)" title="Connecting..."></div>
   </div>
@@ -220,6 +258,29 @@ const GUIDE_COLORS = {
   1:{color:'#1e40af',bg:'#DBEAFE',label:'Murthy'},
   2:{color:'#b45309',bg:'#FEF3C7',label:'Divakar'},
   3:{color:'#15803d',bg:'#DCFCE7',label:'Temp'},
+};
+
+/* ─── TECH ROSTER (v1.127) ──────────────────────────────────────────────
+   Maps Firebase Auth email → which tech this user is, or admin flag.
+   To onboard a new tech:
+     1. Firebase Console → motherofdashboard → Authentication → Add user
+        with email + password.
+     2. Add an entry below mapping that email to a guide number from
+        GUIDE_COLORS (1=Murthy, 2=Divakar, 3=Temp).
+     3. Commit + push. Tell the tech to open the link and sign in.
+   Admins (isAdmin:true) get to preview any tech's view by adding
+   ?guide=N to the URL. Without ?guide=, admins see an explanatory
+   error rather than a random tech's stops. */
+const TECH_ROSTER = {
+  // ── Techs ── (fill in real emails before going live)
+  // 'mukim@ferra.club':     { guide: 1, name: 'Mukim'  },
+  // 'aman.pant@ferra.club': { guide: 2, name: 'Aman'   },
+  // 'temp@ferra.club':      { guide: 3, name: 'Temp'   },
+
+  // ── Admins ── (preview any tech via ?guide=N URL param)
+  'rohit@aroleap.com':              { isAdmin: true, name: 'Rohit' },
+  'rohitpatel.mailid297@gmail.com': { isAdmin: true, name: 'Rohit' },
+  'bhargav.g@aroleap.com':          { isAdmin: true, name: 'Bhargav' },
 };
 
 const TECH_STATUSES = [
@@ -325,21 +386,144 @@ let guideNum, calDay, monthIdx, routeKey, guideName, guideColor, dayLabel;
 
 /* ─── URL PARAMS ─── */
 const params = new URLSearchParams(location.search);
-guideNum = parseInt(params.get('guide'));
+const urlGuide = parseInt(params.get('guide'));  // only honoured for admins
 calDay = parseInt(params.get('date'));
-monthIdx = parseInt(params.get('month')) || 0; // missing/0 → April (back-compat)
+monthIdx = parseInt(params.get('month')) || 0;   // missing/0 → April (back-compat)
 if(monthIdx < 0 || monthIdx >= SHEET_MONTHS.length) monthIdx = 0;
 
-if(!guideNum || !calDay || !GUIDE_COLORS[guideNum]){
+let _signedInUser = null;           // { email, isAdmin, displayName }
+let CACHE_KEY = null;               // set after auth resolves
+let _listenersAttached = false;
+
+/* ─── CACHE ─── */
+function saveToCache(){
+  if(!CACHE_KEY) return;
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      db:db, routeGuide:routeGuide, routeStopTimes:routeStopTimes, routeOrders:routeOrders, ts:Date.now()
+    }));
+  } catch(e){}
+}
+function loadFromCache(){
+  if(!CACHE_KEY) return false;
+  try {
+    const raw=localStorage.getItem(CACHE_KEY);
+    if(!raw) return false;
+    const c=JSON.parse(raw);
+    if(!c.db||!c.db.length) return false;
+    if(Date.now()-c.ts > 86400000) return false; // 24-hr TTL
+    db=c.db;
+    if(c.routeGuide) Object.assign(routeGuide, c.routeGuide);
+    if(c.routeStopTimes) Object.assign(routeStopTimes, c.routeStopTimes);
+    if(c.routeOrders) Object.assign(routeOrders, c.routeOrders);
+    return true;
+  } catch(e){ return false; }
+}
+
+/* ─── SCREEN HELPERS ─── */
+function hideAllScreens(){
   document.getElementById('loading-screen').style.display='none';
+  const ls=document.getElementById('login-screen'); if(ls) ls.style.display='none';
+  document.getElementById('error-screen').style.display='none';
+  document.getElementById('app').style.display='none';
+}
+function showApp(){ hideAllScreens(); document.getElementById('app').style.display='block'; }
+function showLogin(){ hideAllScreens(); const ls=document.getElementById('login-screen'); if(ls) ls.style.display='flex'; }
+function showError(title, msg, showRetry){
+  hideAllScreens();
   document.getElementById('error-screen').style.display='flex';
-  if(!params.get('guide')&&!params.get('date')){
-    document.getElementById('error-title').textContent='Missing Parameters';
-    document.getElementById('error-msg').textContent='URL needs ?guide=1&date=14 parameters. Ask your admin for the correct link.';
+  document.getElementById('error-title').textContent=title;
+  document.getElementById('error-msg').textContent=msg;
+  const btn=document.getElementById('retry-btn');
+  if(btn){
+    btn.style.display = showRetry ? 'inline-block' : 'none';
+    // Reset to default reload on any new error
+    btn.textContent = '🔄 Retry';
+    btn.onclick = ()=>location.reload();
   }
-} else {
-  guideName = GUIDE_COLORS[guideNum].label;
+}
+
+/* ─── FIREBASE INIT + AUTH ─── */
+function initFirebaseAndAuth(){
+  try {
+    if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+  } catch(e){
+    showError('Error', e.message || String(e), true);
+    return;
+  }
+  // Wait for auth state to resolve. If a previous session is persisted
+  // (default behaviour), this fires immediately with the user; otherwise
+  // it fires with null and we show the login screen.
+  firebase.auth().onAuthStateChanged(handleAuthState);
+}
+
+function handleAuthState(user){
+  if(!user || !user.email){
+    // No persisted session, or someone authed anonymously — treat as logged out.
+    if(user && !user.email){
+      // Defensive: clean up anonymous auth lingering from older versions.
+      try { firebase.auth().signOut(); } catch(e){}
+    }
+    showLogin();
+    return;
+  }
+  const entry = TECH_ROSTER[user.email.toLowerCase()];
+  if(!entry){
+    // Authed but not on the roster — show error with a "sign in as someone else" button.
+    showError(
+      'Not Authorized',
+      user.email + ' is not in the technician roster for this app. Contact admin to be added.',
+      true
+    );
+    const btn = document.getElementById('retry-btn');
+    if(btn){
+      btn.textContent = '↩ Sign in as different user';
+      btn.onclick = ()=>{ firebase.auth().signOut(); /* triggers re-auth-state → showLogin */ };
+    }
+    return;
+  }
+
+  // Resolve effective guide
+  let effGuide;
+  if(entry.isAdmin){
+    if(!urlGuide || !GUIDE_COLORS[urlGuide]){
+      showError(
+        'Admin Preview Mode',
+        'Add ?guide=N to the URL to preview a tech\'s view (1=Murthy, 2=Divakar, 3=Temp).',
+        true
+      );
+      const btn = document.getElementById('retry-btn');
+      if(btn){ btn.textContent='⏻ Sign out'; btn.onclick=()=>firebase.auth().signOut(); }
+      return;
+    }
+    effGuide = urlGuide;
+  } else {
+    if(!entry.guide || !GUIDE_COLORS[entry.guide]){
+      showError(
+        'Account Not Linked',
+        'Your account is on the roster but isn\'t linked to a tech yet. Contact admin.',
+        true
+      );
+      const btn = document.getElementById('retry-btn');
+      if(btn){ btn.textContent='⏻ Sign out'; btn.onclick=()=>firebase.auth().signOut(); }
+      return;
+    }
+    effGuide = entry.guide;
+  }
+  if(!calDay){
+    showError('Missing Date', 'URL needs ?date=N (and optionally ?month=M). Ask admin for the correct link.', false);
+    return;
+  }
+
+  // Commit identity
+  guideNum   = effGuide;
+  guideName  = GUIDE_COLORS[guideNum].label;
   guideColor = GUIDE_COLORS[guideNum].color;
+  _signedInUser = { email: user.email, isAdmin: !!entry.isAdmin, displayName: entry.name || user.email };
+  proceedAfterAuth();
+}
+
+function proceedAfterAuth(){
   routeKey = _routeOrderKeyFor(monthIdx, calDay);
   if(monthIdx === 0){
     const dp = DAY_PLAN.find(d=>parseInt(d.date)===calDay);
@@ -350,98 +534,57 @@ if(!guideNum || !calDay || !GUIDE_COLORS[guideNum]){
     const dow = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dt.getDay()];
     dayLabel = `${dow}, ${calDay} ${SM.label}`;
   }
-
   document.getElementById('h-guide').textContent = guideName;
   document.getElementById('h-guide').style.color = guideColor;
-  document.getElementById('h-date').textContent = dayLabel;
+  document.getElementById('h-date').textContent  = dayLabel;
+  showApp();
 
-  initFirebase();
-}
+  CACHE_KEY = 'blr_tech_'+guideNum+'_'+(monthIdx?monthIdx+'-':'')+calDay;
+  const hadCache = loadFromCache();
+  if(hadCache) renderStops();
 
-/* ─── CACHE ─── */
-const CACHE_KEY='blr_tech_'+guideNum+'_'+(monthIdx?monthIdx+'-':'')+calDay;
-function saveToCache(){
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({
-      db:db, routeGuide:routeGuide, routeStopTimes:routeStopTimes, routeOrders:routeOrders, ts:Date.now()
-    }));
-  } catch(e){}
-}
-function loadFromCache(){
-  try {
-    const raw=localStorage.getItem(CACHE_KEY);
-    if(!raw) return false;
-    const c=JSON.parse(raw);
-    if(!c.db||!c.db.length) return false;
-    // Use cache if less than 24 hours old
-    if(Date.now()-c.ts > 86400000) return false;
-    db=c.db;
-    if(c.routeGuide) Object.assign(routeGuide, c.routeGuide);
-    if(c.routeStopTimes) Object.assign(routeStopTimes, c.routeStopTimes);
-    if(c.routeOrders) Object.assign(routeOrders, c.routeOrders);
-    return true;
-  } catch(e){ return false; }
-}
-
-/* ─── FIREBASE ─── */
-let _authRetries=0;
-const MAX_RETRIES=3;
-
-function showApp(){
-  document.getElementById('loading-screen').style.display='none';
-  document.getElementById('app').style.display='block';
-}
-function showError(title, msg, showRetry){
-  document.getElementById('loading-screen').style.display='none';
-  document.getElementById('error-screen').style.display='flex';
-  document.getElementById('error-title').textContent=title;
-  document.getElementById('error-msg').textContent=msg;
-  if(showRetry) document.getElementById('retry-btn').style.display='inline-block';
-}
-
-function initFirebase(){
-  try {
-    if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-    const db2 = firebase.database();
-    _fbRef = db2.ref(FB_PATH);
-
-    // Load cached data immediately so page isn't blank
-    const hadCache = loadFromCache();
-    if(hadCache){
-      showApp();
-      renderStops();
-    }
-
-    attemptAuth(db2, hadCache);
-
-  } catch(e){
-    if(!document.getElementById('app').style.display||document.getElementById('app').style.display==='none'){
-      showError('Error', e.message, true);
-    }
+  const db2 = firebase.database();
+  if(!_fbRef) _fbRef = db2.ref(FB_PATH);
+  if(!_listenersAttached){
+    setupListeners(db2);
+    _listenersAttached = true;
   }
 }
 
-function attemptAuth(db2, hadCache){
-  firebase.auth().signInAnonymously().then(()=>{
-    if(!hadCache) showApp();
-    setupListeners(db2);
-  }).catch(err=>{
-    _authRetries++;
-    if(_authRetries < MAX_RETRIES){
-      // Retry after 2s, 4s, 6s
-      setTimeout(()=>attemptAuth(db2, hadCache), _authRetries * 2000);
-      if(!hadCache){
-        document.querySelector('#loading-screen p').textContent='Retrying connection ('+_authRetries+'/'+MAX_RETRIES+')...';
-      }
-    } else {
-      if(!hadCache){
-        showError('Connection Failed', 'Could not connect after '+MAX_RETRIES+' attempts. Check your internet connection and try again.', true);
-      } else {
-        toast('⚠️ Offline — showing cached data');
-      }
-    }
-  });
+function doLogin(){
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  const errEl = document.getElementById('login-error');
+  if(errEl){ errEl.classList.remove('show'); errEl.textContent=''; }
+  if(!email || !pass){
+    if(errEl){ errEl.textContent='Enter email and password'; errEl.classList.add('show'); }
+    return;
+  }
+  firebase.auth().signInWithEmailAndPassword(email, pass)
+    .catch(err=>{
+      let msg = 'Sign-in failed';
+      if(err.code==='auth/user-not-found' || err.code==='auth/wrong-password' || err.code==='auth/invalid-credential') msg = 'Invalid email or password';
+      else if(err.code==='auth/invalid-email')      msg = 'Invalid email format';
+      else if(err.code==='auth/too-many-requests')  msg = 'Too many attempts — try later';
+      else if(err.code==='auth/network-request-failed') msg = 'Network error — check connection';
+      if(errEl){ errEl.textContent = msg; errEl.classList.add('show'); }
+    });
 }
+
+function doLogout(){
+  if(!confirm('Sign out?')) return;
+  firebase.auth().signOut(); // triggers handleAuthState → showLogin
+}
+
+// Enter key on login fields submits
+document.addEventListener('keydown', e=>{
+  if(e.key !== 'Enter') return;
+  const id = document.activeElement && document.activeElement.id;
+  if(id === 'login-email' || id === 'login-pass') doLogin();
+});
+
+// Kick things off
+initFirebaseAndAuth();
 
 function setupListeners(db2){
   const rowsRef = _fbRef.child('rows');
