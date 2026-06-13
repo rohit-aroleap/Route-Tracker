@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<title>Tech View · BLR Tracker · v1.131</title>
+<title>Tech View · BLR Tracker · v1.132</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -208,6 +208,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14p
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="shared/domain.js"></script>
+<script src="shared/row-repo.js"></script>
 
 <script>
 /* ─── CONFIG ─── */
@@ -325,6 +326,7 @@ let routeGuide = {};
 let routeStopTimes = {};
 let routeOrders = {};
 let _fbRef = null;
+let _rowRepo = null;
 let guideNum, calDay, monthIdx, routeKey, guideName, guideColor, dayLabel;
 
 /* ─── URL PARAMS ─── */
@@ -488,6 +490,17 @@ function proceedAfterAuth(){
 
   const db2 = firebase.database();
   if(!_fbRef) _fbRef = db2.ref(FB_PATH);
+  // Same RowRepo seam as index.html. The "modified by" stamp here is
+  // "tech:<guide name>" so admin and tech writes are visually
+  // distinguishable in _lastModifiedBy. The tap-lockout (_writingIds)
+  // and sync-dot styling stay in the updateTechStatus call site —
+  // they're UX-state, not data-plane concerns.
+  if(!_rowRepo){
+    _rowRepo = new RowRepo({
+      rootRef:       _fbRef,
+      getModifiedBy: () => 'tech:'+guideName,
+    });
+  }
   if(!_listenersAttached){
     setupListeners(db2);
     _listenersAttached = true;
@@ -866,18 +879,15 @@ function updateTechStatus(id, newStatus, expectedFromStatus){
     else if(newStatus==='rescheduled') row.status='rescheduled';
   }
 
-  // Write to Firebase
-  const stamped=Object.assign({}, row, {
-    _lastModifiedBy:'tech:'+guideName,
-    _lastModifiedAt:new Date().toISOString()
-  });
-
+  // Write through the row repo (handles metadata stamping). UX state
+  // — sync-dot colour, tap-lockout, undo toast — stays here because
+  // it's not data-plane.
   const dot=document.getElementById('sync-dot');
   dot.style.background='rgba(255,200,50,0.9)';
   dot.classList.add('pulsing');
   _writingIds.add(id);
 
-  _fbRef.child('rows').child(String(id)).set(stamped).then(()=>{
+  _rowRepo.save(row).then(()=>{
     _writingIds.delete(id);
     dot.style.background='rgba(100,220,120,0.9)';
     dot.classList.remove('pulsing');
@@ -892,14 +902,10 @@ function updateTechStatus(id, newStatus, expectedFromStatus){
       if(!row) return;
       row.techStatus = prevStatus;
       row.status = prevMainStatus;
-      // Restore the full log snapshot (covers both pushed advance and
-      // popped retreat).
       row.techStatusLog = prevLog.slice();
       _writingIds.add(id);
-      _fbRef.child('rows').child(String(id)).set(Object.assign({}, row, {
-        _lastModifiedBy:'tech:'+guideName+' (undo)',
-        _lastModifiedAt:new Date().toISOString()
-      })).then(()=>{ _writingIds.delete(id); renderStops(); saveToCache(); toast('↩ Undone'); })
+      _rowRepo.save(row)
+        .then(()=>{ _writingIds.delete(id); renderStops(); saveToCache(); toast('↩ Undone'); })
         .catch(()=>{ _writingIds.delete(id); toast('Undo failed — check connection'); });
     });
   }).catch(e=>{

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.131</title>
+<title>BLR Tracker · v1.132</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -513,6 +513,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="shared/domain.js"></script>
 <script src="shared/route-day.js"></script>
+<script src="shared/row-repo.js"></script>
 <script>
 /* ─── FIREBASE (real-time sync) ───────────────────────────────────────────
    SETUP (one-time, ~5 min):
@@ -536,8 +537,8 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.131';
-let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
+const APP_VERSION = 'v1.132';
+let _fbRef = null, _rowRepo = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
 let _currentUser = null;       // { uid, email, displayName } — set on auth
@@ -675,6 +676,19 @@ function initFirebase(){
     const db2 = firebase.database();
     _fbRef = db2.ref(FB_PATH);
     setSyncStatus('connecting');
+
+    // Row read/write seam (v1.132). All row writes go through this
+    // repo so metadata stamping and echo suppression are guaranteed.
+    // UX-plane concerns (pending counter, sync indicator) hook in
+    // via callbacks; the repo itself is data-plane only.
+    _rowRepo = new RowRepo({
+      rootRef:       _fbRef,
+      isReady:       () => _isFirebaseReady,
+      getModifiedBy: () => _currentUser ? _currentUser.email : 'unknown',
+      onWriteStart:  ()  => _writeStarted(),
+      onWriteFinish: ()  => _writeFinished(),
+      onError:       (err, op) => console.warn('Firebase '+op+' error', err),
+    });
 
     // Auth state listener — handles fresh login + persistent session
     firebase.auth().onAuthStateChanged(user => {
@@ -901,39 +915,24 @@ function doLogout(){
   });
 }
 
+/* Row writes go through _rowRepo (shared/row-repo.js, v1.132).
+   These wrappers exist so the local _ignoreRowIds / deletedIds
+   bookkeeping stays at the call site — the repo handles the data-
+   plane (metadata stamping, the .set() / .remove() calls, trash
+   archive). _ignoreRowIds is fed from the repo's own echo-suppress
+   set, mirrored via add(id) here so the inline listener below also
+   skips the echo (it predates repo.subscribe). */
 function pushRowToFirebase(row){
-  if(!_isFirebaseReady || !_fbRef) return;
+  if(!_rowRepo || !_isFirebaseReady) return;
   _ignoreRowIds.add(row.id);
-  const stamped=Object.assign({},row,{
-    _lastModifiedBy: _currentUser?_currentUser.email:'unknown',
-    _lastModifiedAt: new Date().toISOString()
-  });
-  _writeStarted();
-  _fbRef.child('rows').child(String(row.id)).set(stamped)
-    .then(()=>_writeFinished())
-    .catch(e=>{_writeFinished();console.warn('Firebase row write error',e);});
+  _rowRepo.save(row);
 }
 
 function deleteRowFromFirebase(id, rowData){
-  if(!_isFirebaseReady || !_fbRef) return;
+  if(!_rowRepo || !_isFirebaseReady) return;
   _ignoreRowIds.add(id);
-  _writeStarted();
-  _fbRef.child('rows').child(String(id)).remove()
-    .then(()=>_writeFinished())
-    .catch(e=>{_writeFinished();console.warn('Firebase row delete error',e);});
-  // Blacklist ID so historical seeding never re-adds it (persisted in Firebase meta)
-  deletedIds[id] = true;
-  _writeStarted();
-  _fbRef.child('meta/deletedIds').child(String(id)).set({
-    deleted:true, by:_currentUser?_currentUser.email:'unknown', at:new Date().toISOString()
-  }).then(()=>_writeFinished()).catch(e=>{_writeFinished();console.warn('Firebase deletedIds write error',e);});
-  // Save row data to trash for undo
-  if(rowData){
-    const trashEntry=Object.assign({}, rowData, {_deletedBy:_currentUser?_currentUser.email:'unknown', _deletedAt:new Date().toISOString()});
-    _writeStarted();
-    _fbRef.child('trash').child(String(id)).set(trashEntry)
-      .then(()=>_writeFinished()).catch(e=>{_writeFinished();console.warn('Firebase trash write error',e);});
-  }
+  deletedIds[id] = true; // local mirror — keep historical seeding aware
+  _rowRepo.remove(id, rowData);
 }
 
 function pushMetaToFirebase(){
