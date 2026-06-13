@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.129</title>
+<title>BLR Tracker · v1.130</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -511,6 +511,7 @@ tr:hover td{background:rgba(0,0,0,0.015)}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="shared/domain.js"></script>
 <script>
 /* ─── FIREBASE (real-time sync) ───────────────────────────────────────────
    SETUP (one-time, ~5 min):
@@ -534,7 +535,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.129';
+const APP_VERSION = 'v1.130';
 let _fbRef = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -961,31 +962,10 @@ function setSyncStatus(state){
   else { _isFirebaseReady=false; updateSyncBadge(); }
 }
 
-/* ─── DATA ─── */
-const DAY_PLAN = [
-  {day:1,date:"11 Apr",dateLabel:"Saturday, 11 April",zone:"North",label:"North — Hebbal / Yelahanka",color:"#1e40af",bg:"#DBEAFE"},
-  {day:2,date:"12 Apr",dateLabel:"Sunday, 12 April",zone:"North-West",label:"North-West — Rajajinagar, Sadashivanagar",color:"#5b21b6",bg:"#EDE9FE"},
-  {day:3,date:"13 Apr",dateLabel:"Monday, 13 April",zone:"East",label:"East — Whitefield Corridor",color:"#065f46",bg:"#D1FAE5"},
-  {day:4,date:"14 Apr",dateLabel:"Tuesday, 14 April",zone:"Central",label:"Central — Indiranagar, Bellandur",color:"#92400e",bg:"#FEF3C7"},
-  {day:5,date:"15 Apr",dateLabel:"Wednesday, 15 April",zone:"South",label:"South — HSR, Sarjapur, Begur",color:"#9f1239",bg:"#FFE4E6"},
-  {day:6,date:"16 Apr",dateLabel:"Thursday, 16 April",zone:"South",label:"South — Banashankari",color:"#9f1239",bg:"#FFE4E6"},
-  {day:7,date:"17 Apr",dateLabel:"Friday, 17 April",zone:"Outer",label:"Outer — Attibele, Nelamangala, Chandapura",color:"#374151",bg:"#F3F4F6"},
-];
+/* DAY_PLAN, SHEET_MONTHS, GUIDE_COLORS, FERRA_TAG_COLOR,
+   getEntryMonthIdx, getEntryCalDate, _sheetOrderKey, normalizePhone
+   are loaded from shared/domain.js — see header note (v1.130). */
 
-/* ─── Sheet month tabs (v1.114) ─────────────────────────────────────
-   Edit Data tab has a strip of month buttons (Apr/May/Jun/Jul).
-   April keeps legacy behaviour (uses DAY_PLAN, bare-day sheetOrders
-   keys). Other months scope rows by parsing month from r.date,
-   and use composite "M-D" sheetOrders keys to avoid colliding with
-   April's bare-day keys. Day-lock UI stays April-only for now —
-   the lock storage layer is also bare-day keyed and would need a
-   migration to support per-month locks safely. */
-const SHEET_MONTHS = [
-  {m:3, y:2026, label:'April', short:'Apr', days:30},
-  {m:4, y:2026, label:'May',   short:'May', days:31},
-  {m:5, y:2026, label:'June',  short:'Jun', days:30},
-  {m:6, y:2026, label:'July',  short:'Jul', days:31},
-];
 let _sheetMonthIdx = (function(){
   try{
     const v = localStorage.getItem('blr_sheet_month');
@@ -1003,24 +983,6 @@ function setSheetMonth(idx){
   window._sheetShouldScroll = true;
   if(typeof renderSheet === 'function') renderSheet();
 }
-/* Which SHEET_MONTHS index a row belongs to. Legacy rows with r.day
-   1..7 are always April (DAY_PLAN). Otherwise parse month name from
-   r.date — "21 Apr", "21st April", "12 May", "1 Jun", "10 Jul" etc. */
-function getEntryMonthIdx(r){
-  if(r && r.day >= 1 && r.day <= 7) return 0;
-  if(r && r.date){
-    const ml = String(r.date).toLowerCase();
-    for(let i = 0; i < SHEET_MONTHS.length; i++){
-      const s = SHEET_MONTHS[i];
-      if(ml.indexOf(s.short.toLowerCase()) !== -1 || ml.indexOf(s.label.toLowerCase()) !== -1) return i;
-    }
-  }
-  return 0; // unknown → April for back-compat
-}
-function _sheetOrderKey(monthIdx, calDay){
-  return monthIdx === 0 ? String(calDay) : (SHEET_MONTHS[monthIdx].m + 1) + '-' + calDay;
-}
-
 /* Route Planner shows all months inline as one continuous list of
    future dates (no month tab strip). Each "rid" encodes both month and
    day-of-month: rid = monthIdx*100 + day. April rids (monthIdx=0) equal
@@ -1359,41 +1321,12 @@ function resetToSeed(){
 }
 
 /* ─── MANUAL BACKUP EXPORT ─── */
-/* ─── SHARED FERRA HELPERS (v1.123) ───────────────────────────────
-   Phone normalisation MUST match the worker's so byPhone lookups hit.
-   Worker rule: strip non-digits → strip leading zeros → prefix '91'
-   if the result is exactly 10 digits (Indian numbers only). */
-function normalizePhone(p){
-  let n = String(p == null ? '' : p).replace(/\D/g, '').replace(/^0+/, '');
-  if(n.length === 10) n = '91' + n;
-  return n;
-}
+/* normalizePhone + FERRA_TAG_COLOR live in shared/domain.js (v1.130). */
 function getFerraTagFor(customer){
   if(!sharedFerraSubs || !sharedFerraSubs.byPhone) return null;
   const phone = customer && (customer.phone || customer.phoneNumber);
   return sharedFerraSubs.byPhone[normalizePhone(phone)] || null;
 }
-
-/* Color scheme for the 16 Ferra subscription tags. Grouped by funnel
-   stage: early-stage = amber/yellow, mid = blue/indigo, SA-touchpoints
-   = pink, success = green, return-flow = red, warehouse = purple. */
-const FERRA_TAG_COLOR = {
-  'Order Pending':           {bg:'#FEF3C7', fg:'#92400E'},
-  'Auto Pay Pending':        {bg:'#FEF3C7', fg:'#92400E'},
-  'Approval Pending':        {bg:'#FEF9C3', fg:'#854D0E'},
-  'Machine Assign Pending':  {bg:'#FEF9C3', fg:'#854D0E'},
-  'Installation Pending':    {bg:'#DBEAFE', fg:'#1E40AF'},
-  'Persona Call Pending':    {bg:'#E0E7FF', fg:'#3730A3'},
-  'Exercises Call Pending':  {bg:'#E0E7FF', fg:'#3730A3'},
-  'Hand Off Pending':        {bg:'#E0E7FF', fg:'#3730A3'},
-  'SA Reach Out Pending':    {bg:'#FCE7F3', fg:'#9D174D'},
-  'SA Follow Up':            {bg:'#FCE7F3', fg:'#9D174D'},
-  'All Steps Complete':      {bg:'#D1FAE5', fg:'#065F46'},
-  'All Done':                {bg:'#D1FAE5', fg:'#065F46'},
-  'Uninstallation Pending':  {bg:'#FFE4E6', fg:'#9F1239'},
-  'Pickup Pending':          {bg:'#FFE4E6', fg:'#9F1239'},
-  'Received in Warehouse':   {bg:'#F3E8FF', fg:'#6B21A8'},
-};
 function renderFerraTagBadge(customer){
   const tag = getFerraTagFor(customer);
   if(!tag) return '';
@@ -2381,11 +2314,7 @@ let routeTimeConfirmed={}; // entryId -> bool
 let routeGuide={}; // entryId -> 1|2 (null = unassigned)
 let routeGuideTab='all'; // 'all'|'unassigned'|1|2 — active tab in left panel
 
-const GUIDE_COLORS={
-  1:{color:'#1e40af',bg:'#DBEAFE',label:'Murthy',light:'#93c5fd'},
-  2:{color:'#b45309',bg:'#FEF3C7',label:'Divakar',light:'#fcd34d'},
-  3:{color:'#15803d',bg:'#DCFCE7',label:'Temp',light:'#86efac'},
-};
+/* GUIDE_COLORS lives in shared/domain.js (v1.130). */
 const GUIDE_UNASSIGNED={color:'#6B7280',bg:'#F3F4F6',label:'Unassigned'};
 
 function guideInfo(id){ return GUIDE_COLORS[routeGuide[id]]||GUIDE_UNASSIGNED; }
@@ -3300,15 +3229,7 @@ function showSaveIndicator(){
 /* ─── EDIT DATA (spreadsheet view) ─── */
 function escAttr(s){ return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
 
-// Returns which April calendar date (1-30) an entry belongs to
-function getEntryCalDate(r){
-  if(r.day>=1&&r.day<=7){
-    const dp=DAY_PLAN.find(d=>d.day===r.day);
-    if(dp) return parseInt(dp.date); // "11 Apr" → 11
-  }
-  if(r.date){ const m=r.date.match(/\d+/); if(m) return parseInt(m[0]); }
-  return null;
-}
+/* getEntryCalDate lives in shared/domain.js (v1.130). */
 
 function sheetRow(r){
   const nStatus=normalizeStatus(r.status);

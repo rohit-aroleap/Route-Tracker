@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<title>Tech View · BLR Tracker · v1.129</title>
+<title>Tech View · BLR Tracker · v1.130</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -207,6 +207,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14p
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="shared/domain.js"></script>
 
 <script>
 /* ─── CONFIG ─── */
@@ -221,44 +222,10 @@ const FIREBASE_CONFIG = {
 };
 const FB_PATH = 'blr_tracker/v2';
 
-const DAY_PLAN = [
-  {day:1,date:"11 Apr",dateLabel:"Saturday, 11 April",zone:"North",label:"North — Hebbal / Yelahanka",color:"#1e40af",bg:"#DBEAFE"},
-  {day:2,date:"12 Apr",dateLabel:"Sunday, 12 April",zone:"North-West",label:"North-West — Rajajinagar",color:"#5b21b6",bg:"#EDE9FE"},
-  {day:3,date:"13 Apr",dateLabel:"Monday, 13 April",zone:"East",label:"East — Whitefield Corridor",color:"#065f46",bg:"#D1FAE5"},
-  {day:4,date:"14 Apr",dateLabel:"Tuesday, 14 April",zone:"Central",label:"Central — Indiranagar, Bellandur",color:"#92400e",bg:"#FEF3C7"},
-  {day:5,date:"15 Apr",dateLabel:"Wednesday, 15 April",zone:"South",label:"South — HSR, Sarjapur, Begur",color:"#9f1239",bg:"#FFE4E6"},
-  {day:6,date:"16 Apr",dateLabel:"Thursday, 16 April",zone:"South",label:"South — Banashankari",color:"#9f1239",bg:"#FFE4E6"},
-  {day:7,date:"17 Apr",dateLabel:"Friday, 17 April",zone:"Outer",label:"Outer — Attibele, Nelamangala",color:"#374151",bg:"#F3F4F6"},
-];
-
-// Mirror of index.html SHEET_MONTHS — used to interpret ?month= URL param
-// and derive the matching routeOrders key for non-April months.
-const SHEET_MONTHS = [
-  {m:3, y:2026, label:'April', short:'Apr', days:30},
-  {m:4, y:2026, label:'May',   short:'May', days:31},
-  {m:5, y:2026, label:'June',  short:'Jun', days:30},
-  {m:6, y:2026, label:'July',  short:'Jul', days:31},
-];
-function getEntryMonthIdx(r){
-  if(r && r.day >= 1 && r.day <= 7) return 0;
-  if(r && r.date){
-    const ml = String(r.date).toLowerCase();
-    for(let i=0;i<SHEET_MONTHS.length;i++){
-      const s = SHEET_MONTHS[i];
-      if(ml.indexOf(s.short.toLowerCase()) !== -1 || ml.indexOf(s.label.toLowerCase()) !== -1) return i;
-    }
-  }
-  return 0;
-}
-function _routeOrderKeyFor(monthIdx, day){
-  return monthIdx === 0 ? String(day) : (SHEET_MONTHS[monthIdx].m + 1) + '-' + day;
-}
-
-const GUIDE_COLORS = {
-  1:{color:'#1e40af',bg:'#DBEAFE',label:'Murthy'},
-  2:{color:'#b45309',bg:'#FEF3C7',label:'Divakar'},
-  3:{color:'#15803d',bg:'#DCFCE7',label:'Temp'},
-};
+/* DAY_PLAN, SHEET_MONTHS, GUIDE_COLORS, getEntryMonthIdx,
+   getEntryCalDate, _routeOrderKeyFor are loaded from shared/domain.js
+   (v1.130). Bumping just this file's version still triggers the
+   update-banner, which re-fetches the shared file on next load. */
 
 /* ─── TECH ROSTER (v1.127) ──────────────────────────────────────────────
    Maps Firebase Auth email → which tech this user is, or admin flag.
@@ -324,14 +291,7 @@ function fmtShortTime(isoStr){
   return `${h%12||12}:${String(m).padStart(2,'0')} ${ampm}`;
 }
 
-function getEntryCalDate(r){
-  if(r.day>=1&&r.day<=7){
-    const dp=DAY_PLAN.find(d=>d.day===r.day);
-    if(dp) return parseInt(dp.date);
-  }
-  if(r.date){ const m=r.date.match(/\d+/); if(m) return parseInt(m[0]); }
-  return null;
-}
+/* getEntryCalDate lives in shared/domain.js (v1.130). */
 
 /* ─── Stepper state machine (v1.112) ───────────────────────────────
    Four visible steps: 1=On My Way, 2=Reached, 3=Started, 4=Done.
