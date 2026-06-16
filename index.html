@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BLR Tracker · v1.132</title>
+<title>BLR Tracker · v1.133</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
 :root {
@@ -277,6 +277,9 @@ tr:hover td{background:rgba(0,0,0,0.015)}
         <select id="filter-status" onchange="renderLog()" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;color:var(--ink);outline:none">
           <option value="">All status</option>
           <option value="paid">₹1 Paid</option>
+          <option value="paid_1500">₹1500 Paid</option>
+          <option value="paid_2000">₹2000 Paid</option>
+          <option value="paid_3000">₹3000 Paid</option>
           <option value="scheduled">Scheduled</option>
           <option value="reinstallation">Reinstallation</option>
           <option value="maintenance">Maintenance</option>
@@ -355,6 +358,9 @@ tr:hover td{background:rgba(0,0,0,0.015)}
             <label>Status</label>
             <select id="f-status">
               <option value="paid">₹1 Paid</option>
+              <option value="paid_1500">₹1500 Paid</option>
+              <option value="paid_2000">₹2000 Paid</option>
+              <option value="paid_3000">₹3000 Paid</option>
               <option value="scheduled">Installation Scheduled</option>
               <option value="reinstallation">Reinstallation</option>
               <option value="maintenance">Maintenance</option>
@@ -537,7 +543,7 @@ const FIREBASE_CONFIG = {
 const FB_PATH    = 'blr_tracker/v2';   // new per-row path
 const FB_PATH_V1 = 'blr_tracker/data'; // old blob path (migration source)
 
-const APP_VERSION = 'v1.132';
+const APP_VERSION = 'v1.133';
 let _fbRef = null, _rowRepo = null, _isFirebaseReady = false, _dirtyRows = new Set(), _fbMetaReceived = false;
 let _ignoreRowIds = new Set(); // rows we just wrote — skip echo
 let deletedIds = {};           // id → true; prevents re-seeding deleted historical entries
@@ -1258,6 +1264,9 @@ function dayChip(d){
 }
 const STATUS_OPTIONS=[
   {value:'paid',           label:'₹1 Paid',               cls:'sc-paid'},
+  {value:'paid_1500',      label:'₹1500 Paid',            cls:'sc-paid'},
+  {value:'paid_2000',      label:'₹2000 Paid',            cls:'sc-paid'},
+  {value:'paid_3000',      label:'₹3000 Paid',            cls:'sc-paid'},
   {value:'scheduled',      label:'Scheduled',              cls:'sc-scheduled'},
   {value:'reinstallation', label:'Reinstallation',         cls:'sc-reinstallation'},
   {value:'maintenance',    label:'Maintenance',            cls:'sc-maintenance'},
@@ -1442,7 +1451,7 @@ function showPage(id){
 function updateStats(){
   document.getElementById('s-total').textContent=db.length;
   document.getElementById('s-done').textContent=db.filter(r=>r.status==='done').length;
-  document.getElementById('s-pending').textContent=db.filter(r=>r.status==='scheduled'||r.status==='paid'||r.status==='rescheduled'||r.status==='confirmed').length;
+  document.getElementById('s-pending').textContent=db.filter(r=>r.status==='scheduled'||r.status==='paid'||r.status==='paid_1500'||r.status==='paid_2000'||r.status==='paid_3000'||r.status==='rescheduled'||r.status==='confirmed').length;
   renderDayPills();
   renderSchedule();
   if(typeof renderRouteDayTabs==='function') renderRouteDayTabs();
@@ -1505,6 +1514,9 @@ const CAL_STATUSES=[
   {value:'uninstallation', color:'#7C3AED', bg:'#EDE9FE', label:'Uninstallation'},
   {value:'maintenance',    color:'#0369A1', bg:'#E0F2FE', label:'Maintenance'},
   {value:'paid',           color:'#B45309', bg:'#FFF8E1', label:'₹1 Paid'},
+  {value:'paid_1500',      color:'#B45309', bg:'#FFF8E1', label:'₹1500 Paid'},
+  {value:'paid_2000',      color:'#B45309', bg:'#FFF8E1', label:'₹2000 Paid'},
+  {value:'paid_3000',      color:'#B45309', bg:'#FFF8E1', label:'₹3000 Paid'},
   {value:'rescheduled',    color:'#6A1B9A', bg:'#EDE7F6', label:'Rescheduled'},
   {value:'cancelled',      color:'#B71C1C', bg:'#FCE4EC', label:'Cancelled'},
   {value:'return',         color:'#C2410C', bg:'#FFF7ED', label:'Return'},
