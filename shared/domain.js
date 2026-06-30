@@ -23,10 +23,15 @@
 // new month means appending here AND ensuring back-compat encoding
 // at any consumer that decodes by Math.floor(rid/100).
 g.SHEET_MONTHS = [
-  {m:3, y:2026, label:'April', short:'Apr', days:30},
-  {m:4, y:2026, label:'May',   short:'May', days:31},
-  {m:5, y:2026, label:'June',  short:'Jun', days:30},
-  {m:6, y:2026, label:'July',  short:'Jul', days:31},
+  {m:3,  y:2026, label:'April',     short:'Apr', days:30},
+  {m:4,  y:2026, label:'May',       short:'May', days:31},
+  {m:5,  y:2026, label:'June',      short:'Jun', days:30},
+  {m:6,  y:2026, label:'July',      short:'Jul', days:31},
+  {m:7,  y:2026, label:'August',    short:'Aug', days:31},
+  {m:8,  y:2026, label:'September', short:'Sep', days:30},
+  {m:9,  y:2026, label:'October',   short:'Oct', days:31},
+  {m:10, y:2026, label:'November',  short:'Nov', days:30},
+  {m:11, y:2026, label:'December',  short:'Dec', days:31},
 ];
 
 // ── The original Apr-11..Apr-17 launch week. Each "day" 1..7 maps
